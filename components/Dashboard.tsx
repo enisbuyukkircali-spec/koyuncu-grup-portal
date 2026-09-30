@@ -454,7 +454,11 @@ export default function Dashboard() {
               <h2>Hızlı Erişim</h2>
               <div className="quick-grid">
                 {quick.map(([label, Icon, color]) => (
-                  <button className={color} key={label} onClick={() => navigate(label)}>
+                  <button
+                    className={color}
+                    key={label}
+                    onClick={() => navigate(label)}
+                  >
                     <Icon size={20} />
                     <span>{label}</span>
                   </button>
