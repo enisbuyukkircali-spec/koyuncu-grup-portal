@@ -71,6 +71,12 @@ const quick: [string, LucideIcon, string][] = [
   ['İzin Talebi', CalendarPlus, 'red']
 ];
 
+const summaryCards: [string, string, string, LucideIcon, string][] = [
+  ['Taleplerim', '3', 'Açık Talep', Files, 'blue'],
+  ['Zimmetlerim', '2', 'Aktif Zimmet', Laptop, 'blue'],
+  ['Yaklaşan Etkinlikler', '2', 'Bu Hafta', CalendarPlus, 'purple']
+];
+
 function Photo({
   src,
   alt,
@@ -302,11 +308,7 @@ export default function Dashboard() {
             </section>
 
             <section className="summary" aria-label="Özet bilgiler">
-              {[
-                ['Taleplerim', '3', 'Açık Talep', Files, 'blue'],
-                ['Zimmetlerim', '2', 'Aktif Zimmet', Laptop, 'blue'],
-                ['Yaklaşan Etkinlikler', '2', 'Bu Hafta', CalendarPlus, 'purple']
-              ].map(([label, count, desc, Icon, color]) => (
+              {summaryCards.map(([label, count, desc, Icon, color]) => (
                 <button
                   key={label}
                   className={`summary-card ${color}`}
