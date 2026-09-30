@@ -1,0 +1,15 @@
+export const portalPermissions=[['home','Ana Sayfa'],['announcements','Duyurular'],['requests','Talepler'],['directory','İletişim Rehberi'],['assets','Zimmetlerim'],['documents','Dokümanlar'],['events','Etkinlikler'],['hr','İK İşlemleri'],['company','Şirket Bilgileri'],['feedback','Öneri & Bildirim'],['it','BT Destek'],['sustainability','Sürdürülebilirlik'],['communications','Kurumsal İletişim'],['help','Yardım & Destek']].map(([id,name])=>({id:`portal.${id}.view`,name,group:'Çalışan Portalı'}));
+export const adminResources=[['users','Kullanıcılar'],['companies','Şirketler'],['locations','Lokasyonlar'],['departments','Departmanlar'],['units','Birimler'],['jobtitles','Ünvanlar'],['roles','Roller']];
+export const permissionCatalog=[...portalPermissions,{id:'admin.view',name:'Admin Paneli',group:'Yönetim'}, {id:'organization.view',name:'Organizasyon Yönetimi',group:'Yönetim'}, ...adminResources.flatMap(([id,name])=>['view','create','edit','disable','manage'].map(action=>({id:`${id}.${action}`,name:`${name} · ${{view:'Görüntüle',create:'Oluştur',edit:'Düzenle',disable:'Pasife al',manage:'Yönet'}[action]}`,group:'Yönetim'}))),{id:'users.reset_password',name:'Kullanıcı şifresi sıfırlama',group:'Yönetim'},{id:'permissions.manage',name:'Özel yetkileri yönet',group:'Yönetim'},{id:'settings.view',name:'Sistem Ayarları',group:'Yönetim'}];
+export const allPermissionIds=permissionCatalog.map(p=>p.id);
+const employee=portalPermissions.map(p=>p.id);
+export const initialRoles:Record<string,{name:string;permissions:string[]}>= {
+ SUPER_ADMIN:{name:'Süper Yönetici',permissions:allPermissionIds},
+ ADMIN:{name:'Yönetici',permissions:allPermissionIds},
+ HR_ADMIN:{name:'İK Yöneticisi',permissions:[...employee,'admin.view','organization.view',...allPermissionIds.filter(p=>/^(users|companies|locations|departments|units|jobtitles)\./.test(p))]},
+ IT_ADMIN:{name:'BT Yöneticisi',permissions:[...employee,'admin.view','users.view','users.create','users.edit','users.disable','users.reset_password']},
+ CONTENT_ADMIN:{name:'İçerik Yöneticisi',permissions:employee},MANAGER:{name:'Birim Yöneticisi',permissions:employee},EMPLOYEE:{name:'Çalışan',permissions:employee}
+};
+export type Identity={id:string;first_name:string;last_name:string;username:string;email:string;photo:string|null;must_change_password:boolean;roles:string[];permissions:string[]};
+export function can(actor:Identity,permission:string){return actor.roles.includes('SUPER_ADMIN')||actor.permissions.includes(permission);}
+export function canAction(actor:Identity,resource:string,action:string){return can(actor,`${resource}.${action}`)||can(actor,`${resource}.manage`);}

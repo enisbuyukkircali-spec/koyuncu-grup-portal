@@ -1,0 +1,7 @@
+import {NextResponse} from 'next/server';
+import {ZodError} from 'zod';
+import {AppError} from './security';
+import {SESSION_COOKIE} from './auth-core';
+export function json(data:unknown,status=200){return NextResponse.json(data,{status,headers:{'Cache-Control':'no-store','Vary':'Cookie'}});}
+export function fail(error:unknown){if(error instanceof AppError)return json({error:error.message},error.status);if(error instanceof ZodError)return json({error:'Alanları kontrol edin: '+error.issues.map(e=>e.path.join('.')).slice(0,4).join(', ')},400);const e=error as {code?:string;constraint?:string;message?:string};if(e.code==='23505'){const field=e.constraint?.includes('username')?'Kullanıcı adı':e.constraint?.includes('email')?'Kurumsal e-posta':e.constraint?.includes('personnel')?'Personel no':'Kod';return json({error:field+' zaten kullanılıyor.'},409);}if(e.code==='23503'||e.code==='22P02')return json({error:'Seçilen kayıt geçersiz. Seçimlerinizi kontrol edin.'},400);if(e.message==='DATABASE_NOT_CONFIGURED'||['42P01','ECONNREFUSED','ENOTFOUND','ETIMEDOUT'].includes(e.code??''))return json({error:'Sistem bağlantısı henüz hazır değil. Sistem yöneticinizle iletişime geçin.'},503);return json({error:'İşlem tamamlanamadı. Lütfen tekrar deneyin.'},500);}
+export function setSession(response:NextResponse,token:string,seconds:number,remember:boolean){response.cookies.set(SESSION_COOKIE,token,{httpOnly:true,secure:process.env.NODE_ENV==='production',sameSite:'lax',path:'/',...(remember?{maxAge:seconds}:{})});return response;}

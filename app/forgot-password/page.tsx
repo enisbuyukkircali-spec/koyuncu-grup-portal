@@ -1,0 +1,2 @@
+import Link from 'next/link';
+export default function Forgot(){return <main className="auth-info"><div className="auth-box"><span className="eyebrow">KOYUNCU GRUP</span><h1>Şifremi Unuttum</h1><p>Geçici şifre almak için kurumunuzun yetkili sistem yöneticisine başvurun. Geçici şifrenizle giriş yaptığınızda kendi şifrenizi belirleyebilirsiniz.</p><Link href="/login">Giriş ekranına dön</Link></div></main>}

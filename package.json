@@ -1,1 +1,31 @@
-{"name":"koyuncu-grup-portal","version":"0.1.0","private":true,"scripts":{"dev":"next dev --hostname 0.0.0.0","build":"next build","start":"next start --hostname 0.0.0.0","typecheck":"tsc --noEmit"},"dependencies":{"next":"16.3.7","react":"19.2.4","react-dom":"19.2.4","lucide-react":"^0.577.0"},"devDependencies":{"typescript":"^5.9.3","@types/node":"^24.0.0","@types/react":"^19.2.0","@types/react-dom":"^19.2.0"}}
+{
+  "name": "koyuncu-grup-portal",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0",
+    "build": "next build",
+    "start": "next start --hostname 0.0.0.0",
+    "typecheck": "tsc --noEmit",
+    "db:migrate": "node --import tsx scripts/migrate.ts",
+    "admin:bootstrap": "node --import tsx scripts/bootstrap.ts",
+    "test": "node --import tsx --test tests/phase2.test.ts"
+  },
+  "dependencies": {
+    "lucide-react": "^0.577.0",
+    "next": "16.3.7",
+    "pg": "^8.23.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
+  }
+}

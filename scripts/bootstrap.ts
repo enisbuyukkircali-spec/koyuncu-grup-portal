@@ -1,0 +1,3 @@
+import {bootstrap} from '../lib/seed';
+async function main(){const email=process.env.BOOTSTRAP_ADMIN_EMAIL,username=process.env.BOOTSTRAP_ADMIN_USERNAME,password=process.env.BOOTSTRAP_ADMIN_PASSWORD;if(!email||!username||!password)throw Error('BOOTSTRAP_ADMIN_EMAIL, BOOTSTRAP_ADMIN_USERNAME ve BOOTSTRAP_ADMIN_PASSWORD tanımlayın.');await bootstrap(email,username,password);console.log('SUPER_ADMIN oluşturuldu. İlk girişte şifre değiştirilecektir.');}
+main().then(()=>process.exit(0)).catch((e:Error)=>{console.error(e.message==='Bootstrap yalnızca boş sistemde çalışır.'?e.message:'Bootstrap başarısız. Ortam değişkenlerini, şifre politikasını ve veritabanı kurulumunu kontrol edin.');process.exit(1);});

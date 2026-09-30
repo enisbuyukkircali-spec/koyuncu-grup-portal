@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import WeatherWidget from './WeatherWidget';
+import ProfileMenu from './ProfileMenu';
+import {Identity,can,portalPermissions} from '@/lib/permissions';
 
 const menus: [string, LucideIcon, string?][] = [
   ['Ana Sayfa', Home],
@@ -111,7 +113,7 @@ function SectionTitle({
   );
 }
 
-export default function Dashboard() {
+export default function Dashboard({actor}:{actor:Identity}) {
   const [sidebar, setSidebar] = useState(false);
   const [modal, setModal] = useState<{ title: string; text: string } | null>(null);
   const [suggestionTab, setSuggestionTab] = useState(0);
@@ -159,7 +161,7 @@ export default function Dashboard() {
       p.join(' ').toLocaleLowerCase('tr').includes(search.toLocaleLowerCase('tr'))
   );
 
-  const results = [...menus.map((x) => x[0]), ...announcements.map((x) => x.title), ...people.map((x) => x[0])]
+  const results = [...menus.filter(([name])=>can(actor,portalPermissions.find(p=>p.name===name)?.id??'portal.home.view')).map((x) => x[0]), ...(can(actor,'portal.announcements.view')?announcements.map((x) => x.title):[]), ...(can(actor,'portal.directory.view')?people.map((x) => x[0]):[])]
     .filter((x) => x.toLocaleLowerCase('tr').includes(globalSearch.toLocaleLowerCase('tr')));
 
   const date = new Date(2024, month, 1);
@@ -216,7 +218,7 @@ export default function Dashboard() {
           )}
 
           {!globalSearch &&
-            menus.map(([label, Icon, badge]) => (
+            menus.filter(([name])=>can(actor,portalPermissions.find(p=>p.name===name)?.id??'portal.home.view')).map(([label, Icon, badge]) => (
               <button
                 key={label}
                 className={`nav-item ${sections[label] ? '' : 'disabled'}`}
@@ -276,7 +278,7 @@ export default function Dashboard() {
             )}
           </div>
 
-          <div className="header-actions">
+          <div className="header-actions"><ProfileMenu actor={actor}/>
             <span className="current-time">{time}</span>
             <button aria-label="Bildirim">
               <Bell size={20} />
@@ -302,11 +304,11 @@ export default function Dashboard() {
             </section>
 
             <section className="summary" aria-label="Özet bilgiler">
-              {[
+              {([
                 ['Taleplerim', '3', 'Açık Talep', Files, 'blue'],
                 ['Zimmetlerim', '2', 'Aktif Zimmet', Laptop, 'blue'],
                 ['Yaklaşan Etkinlikler', '2', 'Bu Hafta', CalendarPlus, 'purple']
-              ].map(([label, count, desc, Icon, color]) => (
+              ] as [string,string,string,LucideIcon,string][]).map(([label, count, desc, Icon, color]) => (
                 <button
                   key={label}
                   className={`summary-card ${color}`}
@@ -325,7 +327,7 @@ export default function Dashboard() {
             </section>
 
             <div className="middle-grid">
-              <section className="panel assets" id="zimmet">
+              {can(actor,'portal.assets.view')&&<section className="panel assets" id="zimmet">
                 <SectionTitle
                   title="Zimmetlerim"
                   onClick={() =>
@@ -349,9 +351,9 @@ export default function Dashboard() {
                     </div>
                   ))}
                 </div>
-              </section>
+              </section>}
 
-              <section className="panel agenda">
+              {can(actor,'portal.events.view')&&<section className="panel agenda">
                 <SectionTitle title="Ajandam" onClick={() => demo('Ajandam')} />
                 <div className="agenda-items">
                   {[
@@ -365,9 +367,9 @@ export default function Dashboard() {
                     </div>
                   ))}
                 </div>
-              </section>
+              </section>}
 
-              <section className="panel announcements" id="duyurular">
+              {can(actor,'portal.announcements.view')&&<section className="panel announcements" id="duyurular">
                 <SectionTitle
                   title="Duyurular"
                   onClick={() => demo('Duyurular', announcements.map((a) => a.title).join(' • '))}
@@ -386,9 +388,9 @@ export default function Dashboard() {
                     </div>
                   ))}
                 </div>
-              </section>
+              </section>}
 
-              <section className="panel events" id="etkinlik">
+              {can(actor,'portal.events.view')&&<section className="panel events" id="etkinlik">
                 <SectionTitle title="Şirket Etkinlikleri" onClick={() => demo('Şirket Etkinlikleri')} />
                 <div className="events-list">
                   {[
@@ -402,9 +404,9 @@ export default function Dashboard() {
                     </div>
                   ))}
                 </div>
-              </section>
+              </section>}
 
-              <section className="panel directory" id="rehber">
+              {can(actor,'portal.directory.view')&&<section className="panel directory" id="rehber">
                 <div className="directory-head">
                   <h2>İletişim Rehberi</h2>
                   <label className="directory-search">
@@ -441,7 +443,7 @@ export default function Dashboard() {
                     </div>
                   ))}
                 </div>
-              </section>
+              </section>}
             </div>
           </div>
 
@@ -466,7 +468,7 @@ export default function Dashboard() {
               </div>
             </section>
 
-            <section className="panel suggestions" id="oneriler">
+            {can(actor,'portal.feedback.view')&&<section className="panel suggestions" id="oneriler">
               <SectionTitle
                 title="Öneri ve Bildirimler"
                 onClick={() => demo('Öneri ve Bildirimler', '2 öneri ve 3 bildirim görüntüleniyor.')}
@@ -522,9 +524,9 @@ export default function Dashboard() {
                   </div>
                 ))}
               </div>
-            </section>
+            </section>}
 
-            <section className="panel news">
+            {can(actor,'portal.communications.view')&&<section className="panel news">
               <SectionTitle
                 title="Haberler"
                 onClick={() =>
@@ -546,7 +548,7 @@ export default function Dashboard() {
                   </div>
                 ))}
               </div>
-            </section>
+            </section>}
           </aside>
         </main>
       </div>
