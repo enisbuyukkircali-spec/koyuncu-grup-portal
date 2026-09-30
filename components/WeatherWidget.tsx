@@ -26,88 +26,56 @@ export default function WeatherWidget() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
 
-  // Konumu al
   const getLocation = (): Promise<LocationCoords> => {
     return new Promise((resolve, reject) => {
       if ('geolocation' in navigator) {
         navigator.geolocation.getCurrentPosition(
-          (position) => {
-            resolve({
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
-            });
-          },
-          (err) => {
-            reject(err);
-          }
+          (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+          (err) => reject(err),
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 120000 }
         );
-      } else {
-        reject(new Error('Tarayıcı konum hizmetini desteklemiyor'));
-      }
+      } else reject(new Error('Tarayıcı konum hizmetini desteklemiyor.'));
     });
   };
 
-  // Ters coğrafi kodlama - koordinatlardan şehir adı
   const getLocationName = async (lat: number, lon: number): Promise<string> => {
     try {
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`,
+        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}`,
         { headers: { 'Accept-Language': 'tr' } }
       );
       const data = await response.json();
-      return data.address?.city || data.address?.town || 'Bilinmeyen Konum';
+      return data.address?.city || data.address?.town || data.address?.village || 'Bilinmeyen Konum';
     } catch {
       return 'Bilinmeyen Konum';
     }
   };
 
-  // Hava durumunu al
   const fetchWeather = async () => {
     try {
       setLoading(true);
       setError('');
 
-      // Konumu al
       const coords = await getLocation();
       const locationName = await getLocationName(coords.latitude, coords.longitude);
 
-      // Open-Meteo API'den hava durumunu al
-      const weatherResponse = await fetch(
+      const response = await fetch(
         `https://api.open-meteo.com/v1/forecast?latitude=${coords.latitude}&longitude=${coords.longitude}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&timezone=auto&temperature_unit=celsius`
       );
 
-      if (!weatherResponse.ok) throw new Error('Hava durumu verisi alınamadı');
+      if (!response.ok) throw new Error('Hava durumu verisi alınamadı.');
 
-      const weatherData = await weatherResponse.json();
-      const current = weatherData.current;
-      const timezone = weatherData.timezone;
+      const data = await response.json();
+      const current = data.current;
 
-      // Hava durumu kodundan açıklama
       const descriptions: Record<number, string> = {
-        0: 'Açık',
-        1: 'Hafif Bulutlu',
-        2: 'Kısmi Bulutlu',
-        3: 'Bulutlu',
-        45: 'Sisli',
-        48: 'Sisli',
-        51: 'Hafif Yağmur',
-        53: 'Orta Yağmur',
-        55: 'Şiddetli Yağmur',
-        61: 'Hafif Yağmur',
-        63: 'Yağmur',
-        65: 'Şiddetli Yağmur',
-        71: 'Hafif Kar',
-        73: 'Kar',
-        75: 'Şiddetli Kar',
-        77: 'Kar Taneleri',
-        80: 'Hafif Yağmurlu',
-        81: 'Yağmurlu',
-        82: 'Şiddetli Yağmurlu',
-        85: 'Hafif Kar Yağışlı',
-        86: 'Şiddetli Kar Yağışlı',
-        95: 'Gök Gürültülü',
-        96: 'Dolu ile Gök Gürültülü',
-        99: 'Büyük Dolu ile Gök Gürültülü',
+        0: 'Açık', 1: 'Hafif Bulutlu', 2: 'Parçalı Bulutlu', 3: 'Bulutlu',
+        45: 'Sisli', 48: 'Dumanlı / Sisli', 51: 'Hafif Çiseleme', 53: 'Çiseleme',
+        55: 'Yoğun Çiseleme', 56: 'Soğuk Çiseleme', 57: 'Yoğun Soğuk Çiseleme',
+        61: 'Hafif Yağmur', 63: 'Yağmur', 65: 'Şiddetli Yağmur', 66: 'Hafif Dondurucu Yağmur',
+        67: 'Dondurucu Yağmur', 71: 'Hafif Kar', 73: 'Kar', 75: 'Şiddetli Kar', 77: 'Kar Tanesi',
+        80: 'Hafif Sağanak', 81: 'Sağanak', 82: 'Şiddetli Sağanak', 85: 'Hafif Kar Yağışı',
+        86: 'Şiddetli Kar Yağışı', 95: 'Gök Gürültülü', 96: 'Dolu', 99: 'Şiddetli Dolu'
       };
 
       setWeather({
@@ -118,42 +86,37 @@ export default function WeatherWidget() {
         location: locationName,
         latitude: coords.latitude,
         longitude: coords.longitude,
-        timezone: timezone,
+        timezone: data.timezone,
       });
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : 'Hava durumu bilgisi alınamadı. Lütfen konum izni veriniz.'
-      );
+      setError(err instanceof Error ? err.message : 'Hava durumu bilgisi alınamadı.');
       setWeather(null);
     } finally {
       setLoading(false);
     }
   };
 
-  // Saati güncelle
   const updateTime = () => {
-    if (weather?.timezone) {
-      const formatter = new Intl.DateTimeFormat('tr-TR', {
-        timeZone: weather.timezone,
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false,
-      });
+    if (!weather?.timezone) return;
 
-      const dateFormatter = new Intl.DateTimeFormat('tr-TR', {
-        timeZone: weather.timezone,
-        day: '2-digit',
-        month: 'long',
-        year: 'numeric',
-        weekday: 'long',
-      });
+    const timeFormatter = new Intl.DateTimeFormat('tr-TR', {
+      timeZone: weather.timezone,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    });
 
-      setTime(formatter.format(new Date()));
-      setDate(dateFormatter.format(new Date()));
-    }
+    const dateFormatter = new Intl.DateTimeFormat('tr-TR', {
+      timeZone: weather.timezone,
+      weekday: 'long',
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric'
+    });
+
+    setTime(timeFormatter.format(new Date()));
+    setDate(dateFormatter.format(new Date()));
   };
 
   useEffect(() => {
@@ -168,7 +131,6 @@ export default function WeatherWidget() {
     }
   }, [weather?.timezone]);
 
-  // Her 10 dakikada hava durumunu yenile
   useEffect(() => {
     const interval = setInterval(fetchWeather, 10 * 60 * 1000);
     return () => clearInterval(interval);
@@ -179,11 +141,9 @@ export default function WeatherWidget() {
       <div className="weather-widget error">
         <AlertCircle size={20} />
         <div className="error-content">
-          <p className="error-title">Hava Durumu Bilgisi Yüklenemedi</p>
+          <p className="error-title">Hava durumu yüklenemedi</p>
           <p className="error-message">{error}</p>
-          <button onClick={fetchWeather} className="retry-button">
-            Tekrar Dene
-          </button>
+          <button onClick={fetchWeather} className="retry-button">Tekrar dene</button>
         </div>
       </div>
     );
@@ -193,7 +153,7 @@ export default function WeatherWidget() {
     return (
       <div className="weather-widget loading">
         <Cloud size={24} className="spin" />
-        <p>Hava durumu yükleniyor...</p>
+        <span>Hava durumu yükleniyor...</span>
       </div>
     );
   }
@@ -203,7 +163,7 @@ export default function WeatherWidget() {
       <div className="weather-header">
         <div className="location-info">
           <MapPin size={16} />
-          <span className="location-name">{weather.location}</span>
+          <span>{weather.location}</span>
         </div>
         <div className="time-info">
           <p className="time">{time}</p>
@@ -214,7 +174,7 @@ export default function WeatherWidget() {
       <div className="weather-main">
         <div className="temperature-section">
           <Cloud size={48} className="weather-icon" />
-          <div className="temp-info">
+          <div>
             <p className="temperature">{weather.temperature}°C</p>
             <p className="description">{weather.description}</p>
           </div>
@@ -239,9 +199,7 @@ export default function WeatherWidget() {
       </div>
 
       <div className="coordinates">
-        <small>
-          {weather.latitude.toFixed(4)}°, {weather.longitude.toFixed(4)}°
-        </small>
+        <small>{weather.latitude.toFixed(4)}°, {weather.longitude.toFixed(4)}°</small>
       </div>
     </div>
   );
