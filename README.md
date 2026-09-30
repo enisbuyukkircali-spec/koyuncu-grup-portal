@@ -33,3 +33,5 @@ Temporary passwords appear once after create/reset and must be conveyed through 
 ## Verification
 
 `npm test` runs 24 sequential scenarios against an isolated PGlite PostgreSQL engine, including password/session lifecycle, duplicate identifiers, authorization and escalation denial, organizational cycles, overrides, deactivation, CSRF and rate limits. No external database or real personnel data is used by tests. `npm run build` checks TypeScript and production compilation. These checks do not substitute for deployment database migration and a live administrator login acceptance test.
+
+Vercel uses `vercel-build`: when DATABASE_URL is present, migration runs before Next.js compilation. Optional BOOTSTRAP_ADMIN_* variables create the first administrator only if users is empty. Remove all three bootstrap variables after successful setup. Migration failure blocks deployment.

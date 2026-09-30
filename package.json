@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "db:migrate": "node --import tsx scripts/migrate.ts",
     "admin:bootstrap": "node --import tsx scripts/bootstrap.ts",
-    "test": "node --import tsx --test tests/phase2.test.ts"
+    "test": "node --import tsx --test tests/phase2.test.ts",
+    "vercel-build": "node --import tsx scripts/vercel-build.ts"
   },
   "dependencies": {
     "lucide-react": "^0.577.0",
