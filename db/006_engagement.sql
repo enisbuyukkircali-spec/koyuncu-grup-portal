@@ -1,0 +1,30 @@
+ALTER TABLE workflow_notifications ADD COLUMN IF NOT EXISTS type text NOT NULL DEFAULT 'SYSTEM';
+ALTER TABLE workflow_notifications ADD COLUMN IF NOT EXISTS title text NOT NULL DEFAULT 'İşlem bildirimi';
+ALTER TABLE workflow_notifications ADD COLUMN IF NOT EXISTS message text NOT NULL DEFAULT '';
+ALTER TABLE workflow_notifications ADD COLUMN IF NOT EXISTS link text NOT NULL DEFAULT '/notifications';
+ALTER TABLE workflow_notifications ADD COLUMN IF NOT EXISTS is_read boolean NOT NULL DEFAULT false;
+ALTER TABLE workflow_notifications ADD COLUMN IF NOT EXISTS dedup_key text;
+CREATE UNIQUE INDEX IF NOT EXISTS notification_recipient_event_unique ON workflow_notifications(recipient_id,dedup_key) WHERE dedup_key IS NOT NULL;
+CREATE INDEX IF NOT EXISTS notification_user_created_idx ON workflow_notifications(recipient_id,created_at DESC,id);
+CREATE INDEX IF NOT EXISTS notification_user_unread_idx ON workflow_notifications(recipient_id,created_at DESC) WHERE NOT is_read;
+DO $$ BEGIN ALTER TABLE workflow_notifications ADD CONSTRAINT notification_type_valid CHECK(type IN('ANNOUNCEMENT','REQUEST','APPROVAL','LEAVE','INVENTORY','EVENT','SUGGESTION','SYSTEM')); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE workflow_notifications ADD CONSTRAINT notification_link_internal CHECK(link ~ '^/[a-zA-Z0-9/_-]+$' AND link NOT LIKE '//%'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+-- Enrich existing foundation records in place, without creating a second inbox.
+UPDATE workflow_notifications n SET type=CASE WHEN event='approval.pending' THEN 'APPROVAL' WHEN EXISTS(SELECT 1 FROM leave_requests l WHERE l.id=n.entity_id) THEN 'LEAVE' ELSE 'REQUEST' END,title=CASE event WHEN 'approval.pending' THEN 'Yeni talep onayınızı bekliyor' WHEN 'approval.approved' THEN 'Talebiniz için onay verildi' WHEN 'approval.rejected' THEN 'Talebiniz reddedildi' WHEN 'request.routed' THEN 'Departmanınıza yeni talep ulaştı' WHEN 'request.assigned' THEN 'Size bir talep atandı' WHEN 'request.completed' THEN 'Talebiniz tamamlandı' ELSE 'Talebiniz güncellendi' END,link=CASE WHEN event='approval.pending' THEN '/approvals' WHEN event IN('request.routed','request.assigned') THEN '/admin/requests/'||entity_id::text WHEN EXISTS(SELECT 1 FROM leave_requests l WHERE l.id=n.entity_id) THEN '/leave/'||entity_id::text ELSE '/requests/'||entity_id::text END WHERE title='İşlem bildirimi' AND dedup_key IS NULL;
+CREATE TABLE IF NOT EXISTS suggestion_types(id text PRIMARY KEY,name text NOT NULL,group_name text NOT NULL CHECK(group_name IN('SUGGESTION','NOTICE')),active boolean NOT NULL DEFAULT true);
+INSERT INTO suggestion_types(id,name,group_name) VALUES('SUGGESTION','Öneri','SUGGESTION'),('ISSUE','Sorun Bildirimi','NOTICE'),('COMPLAINT','Şikayet','NOTICE'),('IMPROVEMENT','İyileştirme Önerisi','SUGGESTION'),('OTHER','Diğer','NOTICE') ON CONFLICT DO NOTHING;
+CREATE TABLE IF NOT EXISTS suggestions(id uuid PRIMARY KEY,number bigint GENERATED ALWAYS AS IDENTITY UNIQUE,owner_id uuid NOT NULL REFERENCES users(id),type_id text NOT NULL REFERENCES suggestion_types(id),subject text NOT NULL,description text NOT NULL,category text NOT NULL DEFAULT '',priority text NOT NULL DEFAULT 'NORMAL' CHECK(priority IN('LOW','NORMAL','HIGH','URGENT')),company_id uuid REFERENCES companies(id),location_id uuid REFERENCES locations(id),department_id uuid REFERENCES departments(id),assignee_id uuid REFERENCES users(id),status text NOT NULL DEFAULT 'SUBMITTED' CHECK(status IN('SUBMITTED','REVIEW','WAITING','ANSWERED','CLOSED','REJECTED')),file_name text,file_type text,file_data bytea CHECK(octet_length(file_data)<=200000),created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now(),CHECK(num_nonnulls(file_name,file_type,file_data) IN(0,3)),CHECK(file_type IS NULL OR file_type IN('application/pdf','image/png','image/jpeg','image/webp')));
+CREATE TABLE IF NOT EXISTS suggestion_status_history(id uuid PRIMARY KEY,suggestion_id uuid NOT NULL REFERENCES suggestions(id),actor_id uuid NOT NULL REFERENCES users(id),event text NOT NULL,status text NOT NULL,note text NOT NULL DEFAULT '',created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS suggestion_responses(id uuid PRIMARY KEY,suggestion_id uuid NOT NULL REFERENCES suggestions(id),actor_id uuid NOT NULL REFERENCES users(id),body text NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),idempotency_key uuid NOT NULL UNIQUE);
+CREATE INDEX IF NOT EXISTS suggestion_owner_status_idx ON suggestions(owner_id,status,created_at DESC);
+CREATE INDEX IF NOT EXISTS suggestion_status_idx ON suggestions(status,created_at DESC);
+CREATE INDEX IF NOT EXISTS suggestion_assignee_idx ON suggestions(assignee_id,status);
+CREATE INDEX IF NOT EXISTS suggestion_department_idx ON suggestions(department_id);
+CREATE INDEX IF NOT EXISTS suggestion_history_idx ON suggestion_status_history(suggestion_id,created_at);
+CREATE INDEX IF NOT EXISTS suggestion_response_idx ON suggestion_responses(suggestion_id,created_at);
+DROP TRIGGER IF EXISTS suggestion_history_immutable ON suggestion_status_history;
+CREATE TRIGGER suggestion_history_immutable BEFORE UPDATE OR DELETE ON suggestion_status_history FOR EACH ROW EXECUTE FUNCTION workflow_immutable();
+DROP TRIGGER IF EXISTS suggestion_response_immutable ON suggestion_responses;
+CREATE TRIGGER suggestion_response_immutable BEFORE UPDATE OR DELETE ON suggestion_responses FOR EACH ROW EXECUTE FUNCTION workflow_immutable();
+
+CREATE INDEX IF NOT EXISTS suggestion_owner_created_idx ON suggestions(owner_id,created_at DESC,id);

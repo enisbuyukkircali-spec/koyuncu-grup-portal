@@ -1,0 +1,7 @@
+import {currentIdentity} from '@/lib/auth';
+import {json,fail} from '@/lib/http';
+import {AppError,readJSON} from '@/lib/security';
+import * as s from '@/lib/suggestions';
+type Context={params:Promise<{path?:string[]}>};
+async function handle(request:Request,context:Context){try{const actor=await currentIdentity();if(!actor||actor.must_change_password)throw new AppError(401,'Yeniden giriş yapın.');const path=(await context.params).path??[],[id,action]=path,p=new URL(request.url).searchParams,admin=p.get('admin')==='1';p.delete('admin');if(path.length>2)throw new AppError(404,'Bulunamadı.');if(request.method==='GET'){if(id==='types')return json(await s.suggestionTypes(actor));if(id==='options')return json(await s.suggestionOptions(actor));if(id&&action==='file'){const f=await s.suggestionFile(actor,id,admin);return new Response(new Uint8Array(f.file_data),{headers:{'Content-Type':f.file_type,'Content-Disposition':"attachment; filename*=UTF-8''"+encodeURIComponent(f.file_name),'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}});}if(action)throw new AppError(404,'Bulunamadı.');return json(id?await s.suggestionDetail(actor,id,admin):await s.suggestionList(actor,p,admin));}const body=await readJSON(request);if(action)throw new AppError(404,'Bulunamadı.');return json(id?await s.manageSuggestion(actor,id,body):await s.createSuggestion(actor,body));}catch(e){return fail(e);}}
+export const GET=handle;export const POST=handle;

@@ -16,3 +16,12 @@
 @media(prefers-reduced-motion:reduce){.weather.live-weather{transition:none}}
 .weather-location a{color:inherit;overflow:hidden;text-overflow:ellipsis;text-decoration:underline;text-underline-offset:2px}
 .market-strip>div{flex-shrink:0}.market-strip small{font-size:8px;color:#8292a9}.header .global-search{min-width:90px}
+
+/* Phase 2A-5: existing bell/card geometry retained. */
+.notification-wrap{position:relative;display:flex;align-items:center}
+.notification-dropdown{position:absolute;right:0;top:calc(100% + 16px);width:min(390px,calc(100vw - 28px));max-height:70vh;overflow:auto;background:#fff;border:1px solid #e6eaf0;border-radius:14px;box-shadow:0 16px 46px #15355626;z-index:80;color:#26374a;text-align:left}
+.notification-title,.notification-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 17px;border-bottom:1px solid #edf0f5}
+.notification-title button,.notification-footer button{background:none;border:0;color:#426790;cursor:pointer}
+.notification-row{display:flex;flex-direction:column;gap:5px;text-align:left;width:100%;border:0;border-bottom:1px solid #edf0f5;background:#fff;padding:14px 17px;color:#26374a;cursor:pointer}
+.notification-row:hover{background:#f3f7fb}.notification-row.unread{background:#f0f6fc;border-left:3px solid #3776b4}.notification-row span{font-size:12px;line-height:1.5}.notification-row small{font-size:10px;color:#788699}.notification-empty{padding:18px;color:#788699;font-size:13px}.notification-footer{font-size:11px;border:0;flex-wrap:wrap}.notification-footer a{color:#426790}.notification-list{margin-top:18px}.notification-unread{border-left:3px solid #3776b4!important}.suggestion-new{display:flex;padding:12px 18px;justify-content:flex-end}.suggestions a.suggestion{text-decoration:none;color:inherit}.suggestions .section-title a{display:inline-flex;align-items:center;gap:5px;text-decoration:none}
+@media(max-width:600px){.notification-dropdown{position:fixed;top:75px;right:14px;max-height:70vh}}
