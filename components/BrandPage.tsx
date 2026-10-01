@@ -1,0 +1,6 @@
+import {notFound,redirect} from 'next/navigation';
+import {requireIdentity} from '@/lib/auth';
+import {AppError} from '@/lib/security';
+import * as b from '@/lib/brand';
+import BrandPanel from './BrandPanel';
+export default async function BrandPage({path,search,admin=false}:{path:string[];search:Record<string,string|string[]|undefined>;admin?:boolean}){if(path.length>1)notFound();const id=path[0],signature=id===(admin?'email-signatures':'email-signature'),isNew=id==='new';if(id&&!signature&&!isNew&&!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(id))notFound();if(isNew&&!admin)notFound();const actor=await requireIdentity(signature?(admin?'email_signature.manage':'email_signature.use'):admin?'brand_center.manage':'brand_center.view'),p=new URLSearchParams();for(const [k,v]of Object.entries(search))if(typeof v==='string')p.set(k,v);try{const initial=signature?admin?await b.signatureTemplates(actor):await b.ownSignature(actor):isNew?{}:id?await b.assetDetail(actor,id,admin):await b.assetList(actor,p,admin);return <BrandPanel key={path.join('/')+p.toString()} actor={actor} admin={admin} id={id} signature={signature} initial={JSON.parse(JSON.stringify(initial))} filters={Object.fromEntries(p)}/>;}catch(e){if(e instanceof AppError){if(e.status===404)notFound();if(e.status===403)redirect('/forbidden');}throw e;}}

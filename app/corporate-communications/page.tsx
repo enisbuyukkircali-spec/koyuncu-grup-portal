@@ -1,0 +1,7 @@
+import Link from 'next/link';
+import {requireIdentity} from '@/lib/auth';
+import {can} from '@/lib/permissions';
+import {dashboardContent} from '@/lib/content';
+import ProfileMenu from '@/components/ProfileMenu';
+import {AnnouncementBlock,NewsBlock,EventBlock} from '@/components/DashboardContentBlocks';
+export default async function Page(){const actor=await requireIdentity('corporate_communications.view'),content=await dashboardContent(actor,true);return <><header className="admin-header"><Link href="/">← Çalışan Portalı</Link><ProfileMenu actor={actor}/></header><main className="brand-page"><span className="eyebrow">KOYUNCU GRUP</span><h1>Kurumsal İletişim</h1><p className="brand-intro">Grubumuzdan güncel haberler ve onaylı kurumsal materyaller.</p><div className="brand-access">{can(actor,'brand_center.view')&&<Link className="a-card" href="/brand-center"><h2>Marka Merkezi →</h2><p>Logolar, sunumlar, şablonlar ve kurumsal fotoğraflar.</p></Link>}{can(actor,'email_signature.use')&&<Link className="a-card" href="/brand-center/email-signature"><h2>E-posta İmzanız →</h2><p>Kurumsal bilgilerinizle onaylı şablonda imza oluşturun.</p></Link>}</div><div className="brand-content">{can(actor,'portal.announcements.view')&&<AnnouncementBlock rows={content.announcements} title="Güncel Duyurular"/>}{can(actor,'portal.communications.view')&&<NewsBlock rows={content.news} title="Son Haberler"/>}{can(actor,'portal.events.view')&&<EventBlock rows={content.events} title="Yaklaşan Etkinlikler"/>}</div></main></>;}
