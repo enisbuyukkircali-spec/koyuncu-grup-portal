@@ -15,3 +15,4 @@
 @media(max-width:720px){.header .global-search{display:none}.market-strip{flex:1;gap:8px}.market-strip b{font-size:10px}.market-strip>div{font-size:9px}.header .notification{display:none}.weather.live-weather{width:118px;right:10px;top:26px;padding:9px 7px}.header .live-clock{display:block;min-width:54px;padding-left:5px}.live-clock span{display:none}.live-clock strong{font-size:15px}.weather-nav button{height:24px;width:24px}.live-weather .weather-source{font-size:7px}}
 @media(prefers-reduced-motion:reduce){.weather.live-weather{transition:none}}
 .weather-location a{color:inherit;overflow:hidden;text-overflow:ellipsis;text-decoration:underline;text-underline-offset:2px}
+.market-strip>div{flex-shrink:0}.market-strip small{font-size:8px;color:#8292a9}.header .global-search{min-width:90px}

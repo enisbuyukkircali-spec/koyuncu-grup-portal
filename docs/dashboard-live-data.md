@@ -10,3 +10,8 @@ No providers run during SSR/auth. The authenticated same-origin GET /api/dashboa
 Weather themes use exact MET symbol_code values (day/night suffix stripped). clear, fair/partlycloudy, cloudy, fog, lightrain, rain, heavyrain, snow/sleet and thunder families map to nine CSS atmospheres. MET has no separate drizzle code; light rain uses the drizzle visual. Unknown codes use a neutral theme. No photos, carousel package or new dependency.
 
 No new environment variables. Migration db/004_dashboard_cache.sql runs in the existing vercel-build migration sequence. User needs an active assigned Location; country TR/Türkiye and city/district or latitude/longitude. Providers can fail independently without affecting portal/auth rendering.
+
+## IP weather and Brent update
+Weather now prefers Vercel-provided x-vercel-ip-latitude/longitude/city/country. Coordinates rounded to 2 decimals; raw IP never read/stored/forwarded. Validated browser timezone determines forecast days. VPN/mobile carrier routing may identify a different city. Assigned Location remains a fallback when Vercel has no GeoIP. No extra geo service/key/dependency; no GPS permission.
+
+Brent spot USD/barrel comes from the official EIA daily history table https://www.eia.gov/dnav/pet/hist/RBRTED.htm . It is published daily observations (publication can lag), NOT a real-time futures quote. Table dates and missing weekdays are preserved; latest valid observation is shown with its actual date. 60-minute shared durable cache and existing 5-minute error backoff. EIA public domain reuse: https://www.eia.gov/about/copyrights_reuse.php . Header order USD/EUR/GBP/Brent/BIST100. TradingView's free widgets market lists did not include BIST; no unlicensed BIST source was added.

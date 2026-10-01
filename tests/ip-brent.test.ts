@@ -1,0 +1,13 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {ipWeatherLocation} from '../lib/ip-weather-location';
+import {parseBrent} from '../lib/brent-provider';
+const headers=()=>new Headers({'x-vercel-ip-latitude':'40.94421','x-vercel-ip-longitude':'29.16032','x-vercel-ip-city':'%C4%B0stanbul','x-vercel-ip-country':'TR'});
+test('Vercel GeoIP decodes city and rounds coordinates without raw IP',()=>{const result=ipWeatherLocation(headers())!;assert.equal(result.name,'İstanbul');assert.equal(result.lat,40.94);assert.equal(result.lon,29.16);assert.equal(result.timezone,'Europe/Istanbul');assert.match(result.resolution,/IP/);assert.ok(!('ip' in result));});
+test('missing malformed or out-of-range IP location safely falls back',()=>{assert.equal(ipWeatherLocation(new Headers()),null);for(const value of ['','NaN','100','Infinity']){const h=headers();h.set('x-vercel-ip-latitude',value);assert.equal(ipWeatherLocation(h),null);}});
+test('timezone validated and foreign cities supported',()=>{assert.equal(ipWeatherLocation(headers(),'Europe/London')!.timezone,'Europe/London');assert.equal(ipWeatherLocation(headers(),'bad/timezone')!.timezone,'Europe/Istanbul');const h=headers();h.set('x-vercel-ip-country','US');h.set('x-vercel-ip-city','New%20York');assert.equal(ipWeatherLocation(h,'America/New_York')!.name,'New York');});
+const title='<title>Europe Brent Spot Price FOB (Dollars per Barrel)</title>';
+const row=(date:string,values:string[])=>'<tr><td>'+date+'</td>'+values.map(v=>'<td>'+v+'</td>').join('')+'</tr>';
+test('Brent latest actual observation skips unpublished days and keeps unit',()=>{const data=parseBrent(title+row('2026 Sep-28 to Oct- 2',['119.97','113.96','','','']));assert.deepEqual(data,{source:'U.S. EIA',value:113.96,asOf:'2026-09-29',unit:'USD/varil'});});
+test('Brent handles year rollover, holidays and unordered rows',()=>{const html=title+row('2025 Dec-29 to Jan- 2',['60','61','62','NA','63'])+row('2025 Dec-22 to Dec-26',['50','51','','','']);assert.equal(parseBrent(html).asOf,'2026-01-02');assert.equal(parseBrent(html).value,63);});
+test('Brent rejects errors/wrong series/no valid positive price',()=>{assert.throws(()=>parseBrent('upstream failure'));assert.throws(()=>parseBrent(title+row('2026 Sep-28 to Oct- 2',['NA','-1','','NaN',''])));});
