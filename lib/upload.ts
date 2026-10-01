@@ -1,0 +1,2 @@
+// Server-side validation for the existing inline image storage.
+export function uploadedImageValid(value:string){const match=value.match(/^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+=*)$/);if(!match)return false;const data=Buffer.from(match[2],'base64');return data.length<=200000&&(match[1]==='png'?data.subarray(0,8).equals(Buffer.from('89504e470d0a1a0a','hex')):match[1]==='jpeg'?data.subarray(0,3).equals(Buffer.from('ffd8ff','hex')):data.subarray(0,4).toString()==='RIFF'&&data.subarray(8,12).toString()==='WEBP');}

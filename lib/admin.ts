@@ -1,3 +1,4 @@
+import {uploadedImageValid} from './upload';
 import {randomUUID} from 'node:crypto';
 import {z} from 'zod';
 import {DB,database,transaction,lock} from './db';
@@ -6,7 +7,7 @@ import {AppError,hashPassword,temporaryPassword} from './security';
 import {identityFor} from './auth-core';
 const optionalText=z.string().max(250).nullish();
 const optionalId=z.string().uuid().nullable().optional();
-const photo=z.string().max(280000).nullable().optional().refine(value=>!value||/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(value),'Yalnızca PNG, JPEG veya WebP görselleri kabul edilir.');
+const photo=z.string().max(280000).nullable().optional().refine(value=>!value||uploadedImageValid(value),'En fazla 200 KB geçerli PNG, JPEG veya WebP görseli seçin.');
 const status=z.enum(['ACTIVE','INACTIVE','ON_LEAVE','LEFT']);
 const userSchema=z.object({show_in_directory:z.boolean().optional(),show_birthday:z.boolean().optional(),birth_date:z.string().date().refine(v=>v<=new Date().toISOString().slice(0,10),'Doğum tarihi gelecekte olamaz.').nullable().optional(),personnel_no:z.string().trim().min(1).max(50).transform(s=>s.toUpperCase()),first_name:z.string().trim().min(1).max(80),last_name:z.string().trim().min(1).max(80),email:z.string().trim().email().max(254).transform(s=>s.toLowerCase()),username:z.string().trim().regex(/^[a-zA-Z0-9._-]{3,64}$/).transform(s=>s.toLowerCase()),photo,phone:optionalText,extension:optionalText,company_id:optionalId,location_id:optionalId,department_id:optionalId,unit_id:optionalId,job_title_id:optionalId,manager_user_id:optionalId,start_date:z.string().date().nullable().optional(),employee_type_id:z.string().max(50).nullable().optional(),status,role_ids:z.array(z.string().max(64)).min(1).max(15),overrides:z.record(z.string(),z.boolean()).default({}),temporary_password:z.string().min(6).max(128).optional()}).strict();
 const orgSchema=z.object({name:z.string().trim().min(1).max(120),code:z.string().trim().min(1).max(40).transform(s=>s.toUpperCase()),active:z.boolean().default(true),company_id:optionalId,department_id:optionalId,parent_id:optionalId,manager_user_id:optionalId,logo:photo,address:z.string().max(500).nullish(),city:optionalText,district:optionalText,country:optionalText,latitude:z.number().min(-90).max(90).nullable().optional(),longitude:z.number().min(-180).max(180).nullable().optional(),timezone:z.string().max(100).refine(s=>{try{new Intl.DateTimeFormat('tr',{timeZone:s});return true;}catch{return false;}},'Geçerli saat dilimi girin.').optional(),phone:optionalText}).strict();

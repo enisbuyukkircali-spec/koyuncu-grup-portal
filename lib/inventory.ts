@@ -1,3 +1,4 @@
+import {uploadedImageValid} from './upload';
 import {createNotification} from './notifications';
 import {randomUUID} from 'node:crypto';
 import {z} from 'zod';
@@ -18,7 +19,7 @@ const code=z.string().trim().min(1).max(80).transform(v=>v.toUpperCase());
 const states=z.enum(['STOCK','ASSIGNED','SERVICE','FAULTY','LOST','SCRAPPED','RETURNED','INACTIVE']);
 const returnStates=z.enum(['STOCK','SERVICE','FAULTY','LOST','SCRAPPED','INACTIVE']);
 const categorySchema=z.object({name:z.string().trim().min(1).max(100),code,icon:z.string().trim().max(40).default('package'),description:text,active:z.boolean(),field_profile:z.enum(['BASIC','COMPUTER','PHONE','SIM','MONITOR']).default('BASIC')}).strict();
-const image=z.string().max(280000).regex(/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/).nullable().optional();
+const image=z.string().max(280000).refine(uploadedImageValid,'En fazla 200 KB geçerli PNG, JPEG veya WebP görseli seçin.').nullable().optional();
 const itemSchema=z.object({asset_number:code,category_id:categoryId,brand:z.string().trim().max(100),model:z.string().trim().max(150),serial_number:z.string().trim().max(120).nullable().optional().transform(v=>v?v.toUpperCase():null),company_id:uuid,location_id:uuid,department_id:z.union([uuid,z.literal(''),z.null()]).optional().transform(v=>v||null),purchase_date:nullableDate,warranty_end:nullableDate,supplier:text,invoice_number:text,notes:text,image,status:states,extras:z.record(z.string(),z.string().trim().max(200)).default({})}).strict();
 function permit(actor:Identity,p:string){if(actor.must_change_password)throw new AppError(401,'Şifrenizi değiştirin.');requirePermission(actor,p);}
 async function write<T>(actor:Identity,p:string,fn:(db:DB,live:Identity)=>Promise<T>){return transaction(async db=>{await lock(db);const live=await identityFor(db,actor.id);if(!live)throw new AppError(401,'Yeniden giriş yapın.');permit(live,p);return fn(db,live);});}

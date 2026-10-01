@@ -4,3 +4,6 @@
 .content-cover{width:100%;max-height:300px;object-fit:cover;border-radius:12px}.content-body{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.8}.content-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px}.content-cards a{color:inherit;text-decoration:none}.audience-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}.audience-options select{min-height:130px}.content-textarea{width:100%;min-height:220px;padding:12px;border:1px solid #dbe3ef;border-radius:8px;font:inherit}.content-form .form-grid{margin-bottom:16px}
 
 .content-dashboard-empty{min-height:90px;display:flex;align-items:center;justify-content:center;padding:18px;color:#66758d;font-size:12px}.announcement-grid a,.news a,.event-info a{color:inherit;text-decoration:none}.section-title a{text-decoration:none}
+/* Keep long cells and forms inside the viewport without changing desktop layout. */
+.a-table-wrap{max-width:100%}.a-table-wrap td{overflow-wrap:anywhere}.a-field{min-width:0}.a-field input,.a-field select,.a-field textarea{max-width:100%}textarea:focus-visible{outline:2px solid var(--a-blue);outline-offset:3px}
+@media(max-width:720px){.admin-main,.admin-content,main{min-width:0}.a-table-wrap table{min-width:650px}.admin-nav{max-width:100vw}.a-actions{flex-wrap:wrap}.auth-info h1{font-size:25px}}
