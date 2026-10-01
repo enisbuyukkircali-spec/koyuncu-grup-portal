@@ -1,0 +1,31 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {randomUUID} from 'node:crypto';
+import {PGlite} from '@electric-sql/pglite';
+import {pg_trgm} from '@electric-sql/pglite/contrib/pg_trgm';
+import {injectTestDB} from '../lib/db';
+import {seed} from '../lib/seed';
+import {identityFor} from '../lib/auth-core';
+import * as s from '../lib/surveys';
+import {Identity} from '../lib/permissions';
+test('Phase 2A-12 survey privacy, validation and audience',async t=>{
+ Object.assign(process.env,{NODE_ENV:'test'});const pg=new PGlite({extensions:{pg_trgm}});injectTestDB({query:async<T>(sql:string,v?:unknown[])=>({rows:(await pg.query(sql,v)).rows as T[]})});
+ for(const f of ['001_phase2.sql','003_content.sql','005_workflows.sql','006_engagement.sql','008_directory.sql','009_brand_center.sql','010_notification_v2.sql','011_ticket_v2.sql','012_surveys.sql'])await pg.exec(await readFile('db/'+f,'utf8'));
+ const db={query:async<T>(sql:string,v?:unknown[])=>({rows:(await pg.query(sql,v)).rows as T[]})};await seed(db);
+ const rootId=randomUUID(),users:Identity[]=[];
+ for(let i=0;i<7;i++){const id=i===0?rootId:randomUUID();await db.query("INSERT INTO users(id,personnel_no,first_name,last_name,email,username,must_change_password) VALUES($1,$2,$2,'Survey',$3,$2,false)",[id,'survey'+i,'survey'+i+'@example.test']);await db.query('INSERT INTO user_roles VALUES($1,$2)',[id,i===0?'SUPER_ADMIN':'EMPLOYEE']);users.push((await identityFor(db,id))!);}
+ const root=users[0],emp=users[1],outside=users[6];
+ const payload={title:'Anonim test',description:'',anonymous:true,required:true,starts_at:'2020-01-01T00:00:00Z',ends_at:'2099-01-01T00:00:00Z',privacy_threshold:5,audience_all:false,targets:users.slice(1,6).map(u=>({type:'user_id',id:u.id})),questions:[{id:'choice',title:'Seçim',type:'SINGLE',required:true,options:['A','B']},{id:'scale',title:'Puan',type:'SCALE_5',required:true,options:[]},{id:'multi',title:'Çoklu',type:'MULTIPLE',required:false,options:['X','Y']},{id:'yes',title:'Evet Hayır',type:'YES_NO',required:true,options:[]},{id:'text',title:'Metin',type:'SHORT',required:false,options:[]}]};let id='';
+ await t.test('employee cannot create or manage results',async()=>{await assert.rejects(()=>s.saveSurvey(emp,payload),{status:403});});
+ await t.test('draft hidden; publish notifies only audience and creates outbox',async()=>{id=(await s.saveSurvey(root,payload)).id;await assert.rejects(()=>s.surveyDetail(emp,id),{status:404});await s.surveyStatus(root,id,'PUBLISHED');assert.equal((await s.surveyList(emp)).total,1);assert.equal((await s.surveyList(outside)).total,0);await assert.rejects(()=>s.surveyDetail(outside,id),{status:404});assert.equal((await db.query("SELECT id FROM workflow_notifications WHERE entity_id=$1",[id])).rows.length,5);assert.equal((await db.query("SELECT id FROM email_outbox WHERE event_type='survey.published'")).rows.length,5);});
+ await t.test('publication and questions immutable after publish',async()=>{await assert.rejects(()=>s.surveyStatus(root,id,'PUBLISHED'),{status:409});await assert.rejects(()=>s.saveSurvey(root,payload,id),{status:409});});
+ await t.test('required and scale/options reject bad answers before participation write',async()=>{await assert.rejects(()=>s.submitSurvey(emp,id,{}),{status:400});await assert.rejects(()=>s.submitSurvey(emp,id,{choice:'C',scale:6,yes:'Evet'}),{status:400});await assert.rejects(()=>s.submitSurvey(emp,id,{choice:'A',scale:5,yes:'Evet',multi:['X','X']}),{status:400});assert.equal((await db.query('SELECT * FROM survey_participation')).rows.length,0);});
+ await t.test('anonymous answers carry neither identity nor timing; duplicate is rejected',async()=>{await s.submitSurvey(emp,id,{choice:'A',scale:5,yes:'Evet',multi:['X'],text:'Faydalı'});await assert.rejects(()=>s.submitSurvey(emp,id,{choice:'B',scale:1,yes:'Hayır'}),{status:409});const row=(await db.query<Record<string,unknown>>('SELECT * FROM survey_responses')).rows[0];assert.equal(row.user_id,null);assert.ok(!('created_at' in row));assert.ok(!('participation_id' in row));await assert.rejects(()=>s.surveyResults(emp,id),{status:403});await assert.rejects(()=>s.submitSurvey(outside,id,{choice:'A',scale:5,yes:'Evet'}),{status:404});});
+ await t.test('small group results suppressed including free text',async()=>{const r=await s.surveyResults(root,id);assert.equal(r.suppressed,true);assert.deepEqual(r.questions,[]);assert.equal(r.assigned,5);assert.equal(r.answered,1);});
+ await t.test('threshold opens aggregate only; no per-person rows',async()=>{for(const u of users.slice(2,6))await s.submitSurvey(u,id,{choice:'B',scale:3,yes:'Hayır',multi:['X','Y']});const r=await s.surveyResults(root,id);assert.equal(r.suppressed,false);assert.equal(r.participation,100);assert.equal(r.pending,0);assert.equal(r.questions[0].counts.find(c=>c.label==='B')?.count,4);assert.ok(!JSON.stringify(r).includes(emp.id));});
+ await t.test('closure blocks answers, keeps history',async()=>{await s.surveyStatus(root,id,'CLOSED');await assert.rejects(()=>s.submitSurvey(emp,id,{choice:'A',scale:5,yes:'Evet'}),{status:404});assert.equal((await db.query('SELECT * FROM survey_responses')).rows.length,5);await assert.rejects(()=>db.query('DELETE FROM survey_responses'));});
+ await t.test('named survey retains user; inactive and override checks fresh',async()=>{const named=(await s.saveSurvey(root,{...payload,title:'İsimli',anonymous:false,audience_all:true,targets:[]})).id;await s.surveyStatus(root,named,'PUBLISHED');await s.submitSurvey(emp,named,{choice:'A',scale:5,yes:'Evet'});assert.equal((await db.query<{user_id:string}>('SELECT user_id FROM survey_responses WHERE survey_id=$1',[named])).rows[0].user_id,emp.id);await db.query("INSERT INTO user_permission_overrides VALUES($1,'surveys.view_own',false)",[outside.id]);await assert.rejects(()=>s.submitSurvey(outside,named,{choice:'A',scale:5,yes:'Evet'}),{status:403});});
+ await t.test('migration repeat and seed preserve revocation',async()=>{await pg.exec(await readFile('db/012_surveys.sql','utf8'));await seed(db);assert.ok(!(await identityFor(db,outside.id))?.permissions.includes('surveys.view_own'));});
+ await pg.close();
+});

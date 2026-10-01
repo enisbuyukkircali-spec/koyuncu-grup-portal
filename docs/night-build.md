@@ -14,3 +14,9 @@
 - Ticket tasks are parent-scoped. Employee own-task list exposes only assigned task fields and ticket number, not another employee's private ticket description/attachments. No independent project framework.
 
 - Recovery: fixed nested SQL quote syntax without weakening TypeScript. Assignment history now records ASSIGNED; task assignment notifies only its assignee and routes to own tasks.
+
+## Phase 2A-12
+- Surveys reuse users, organization/role audience semantics, RBAC and Notification V2/outbox; no scheduler/provider.
+- Anonymous participation deduplication is separate from randomly identified answers. Answers have no user, participation link, timestamp or demographic snapshot. Results expose aggregates, never response rows/identities. All anonymous results including text are hidden below configurable minimum 5 responses; no small-cohort breakdown endpoint.
+- Published survey questions/audience/privacy are frozen. Submission validates each answer and atomically records participation plus answers; global transaction lock and primary key prevent duplicates. Responses immutable in PostgreSQL.
+- Catalog/admin lists paginated, aggregate participation counts, no per-user result query loop. Draft editor, seven question types, date window, manual publish/close, target audience picker and result summaries.
