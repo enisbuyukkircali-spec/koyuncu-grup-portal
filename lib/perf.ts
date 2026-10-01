@@ -1,0 +1,13 @@
+// Preview-only, request-local diagnostics. Never retains credentials or SQL in output.
+import {AsyncLocalStorage} from 'node:async_hooks';
+import {performance} from 'node:perf_hooks';
+const storage=new AsyncLocalStorage<Trace>();
+const born=Date.now();let requests=0;
+type Query={name:string;acquire:number;query:number;fresh:boolean;sql:string;values?:unknown[]};
+type Trace={start:number;first:boolean;queries:Query[];auth:number;authCalls:number;rbac:number};
+export const trace=()=>storage.getStore();
+export async function measured<T>(fn:()=>Promise<T>){if(process.env.VERCEL_ENV!=='preview')return fn();return storage.run({start:performance.now(),first:requests++===0,queries:[],auth:0,authCalls:0,rbac:0},fn);}
+export function report(){const t=trace();if(!t)return undefined;const host=new URL(process.env.DATABASE_URL!).hostname;return {region:process.env.VERCEL_REGION??'unknown',neonRegion:host.match(/([a-z]+-[a-z]+-\d+)\.(?:aws|azure)/)?.[1]??'unknown',pooled:host.includes('-pooler.'),first:t.first,age:Date.now()-born,middleware:0,auth:t.auth,authCalls:t.authCalls,rbac:t.rbac,server:performance.now()-t.start,db:t.queries.reduce((n,q)=>n+q.acquire+q.query,0),queries:t.queries.map(({sql,values,...q})=>q)};}
+export function queryName(sql:string){if(sql.includes('FROM sessions'))return 'session';if(sql.includes('json_agg(rows)'))return 'options';if(sql.includes('count(*) n FROM users u'))return 'users_count';if(sql.includes('u.*,c.name'))return 'users_list';return sql.match(/FROM\s+(\w+)/i)?.[1]??'query';}
+export function markRBAC(start:number){const t=trace();if(t)t.rbac+=performance.now()-start;}
+export async function plans(db:{query:(sql:string,values?:unknown[])=>Promise<{rows:any[]}>}){const t=trace();if(!t)return undefined;const queries=[...t.queries];const output=[];for(const q of queries){if(!q.sql.trim().startsWith('SELECT'))continue;const r=await db.query('EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) '+q.sql,q.values);const plan=r.rows[0]['QUERY PLAN'][0];const scans:any[]=[];function visit(n:any){if(n['Relation Name'])scans.push({table:n['Relation Name'],node:n['Node Type'],index:n['Index Name'],rows:n['Actual Rows']});for(const c of n.Plans??[])visit(c)}visit(plan.Plan);output.push({name:q.name,execution:plan['Execution Time'],planning:plan['Planning Time'],scans});}const indexes=(await db.query("SELECT tablename,indexname FROM pg_indexes WHERE schemaname='public' AND tablename IN ('users','sessions','user_roles','roles','role_permissions','user_permission_overrides','companies','locations','departments','units','job_titles') ORDER BY tablename,indexname")).rows;return {plans:output,indexes};}
