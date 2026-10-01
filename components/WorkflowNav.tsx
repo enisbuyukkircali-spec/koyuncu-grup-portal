@@ -1,0 +1,3 @@
+import Link from 'next/link';
+import {Identity,can} from '@/lib/permissions';
+export default function WorkflowNav({actor}:{actor:Identity}){const links=[['requests','Talepler','requests.view_department'],['request-types','Talep Türleri','request_types.view'],['leave','İzin Talepleri','leave.manage'],['leave-types','İzin Türleri','leave_types.view'],['leave-balances','İzin Bakiyeleri','leave_balances.view']].filter(([, ,p])=>can(actor,p));return links.length?<><small>TALEP VE İZİN</small>{links.map(([path,label])=><Link key={path} href={'/admin/'+path}>{label}</Link>)}</>:null;}
