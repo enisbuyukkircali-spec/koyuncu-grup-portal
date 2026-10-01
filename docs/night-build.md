@@ -7,3 +7,10 @@
 - Announcement pinning and existing priority/expiry retained. Announcement/document read acknowledgements bind to immutable content revision snapshots and current user, preserving previous acceptance history. Content changes require rereading. Management report uses current eligible audience; first 100 names and full aggregate totals.
 - Test fixtures were updated to use General category for normal announcement no-spam assertion: new-joiner categories now intentionally notify under this phase.
 - Storage remains existing inline Neon storage. No email credentials, production changes, external integrations, or paid services.
+
+## Phase 2A-11
+- Existing requests/type routing retained. Additional accepted/assigned/waiting states, need urgency/date, acceptance fields, deadline history, completion timestamp, rejection reason.
+- SLA per request type/priority: hours or whole business days, weekends excluded in Istanbul, no public-holiday integration. SLA target snapshotted on creation; manual estimate is separate.
+- Ticket tasks are parent-scoped. Employee own-task list exposes only assigned task fields and ticket number, not another employee's private ticket description/attachments. No independent project framework.
+
+- Recovery: fixed nested SQL quote syntax without weakening TypeScript. Assignment history now records ASSIGNED; task assignment notifies only its assignee and routes to own tasks.

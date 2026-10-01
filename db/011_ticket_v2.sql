@@ -1,0 +1,22 @@
+BEGIN;
+ALTER TABLE request_types ADD COLUMN IF NOT EXISTS sla_policy jsonb NOT NULL DEFAULT '{}';
+ALTER TABLE requests ADD COLUMN IF NOT EXISTS need_when text NOT NULL DEFAULT 'UNSPECIFIED' CHECK(need_when IN('URGENT','DATE','UNSPECIFIED'));
+ALTER TABLE requests ADD COLUMN IF NOT EXISTS needed_on date;
+ALTER TABLE requests ADD COLUMN IF NOT EXISTS accepted_by uuid REFERENCES users;
+ALTER TABLE requests ADD COLUMN IF NOT EXISTS accepted_at timestamptz;
+ALTER TABLE requests ADD COLUMN IF NOT EXISTS deadline timestamptz;
+ALTER TABLE requests ADD COLUMN IF NOT EXISTS sla_due_at timestamptz;
+ALTER TABLE requests ADD COLUMN IF NOT EXISTS completed_at timestamptz;
+ALTER TABLE requests ADD COLUMN IF NOT EXISTS rejection_reason text NOT NULL DEFAULT '';
+ALTER TABLE requests DROP CONSTRAINT IF EXISTS requests_status_check;
+ALTER TABLE requests ADD CONSTRAINT requests_status_check CHECK(status IN('SUBMITTED','REVIEW','PENDING_MANAGER','APPROVED','ACCEPTED','ASSIGNED','IN_PROGRESS','WAITING','COMPLETED','REJECTED','CANCELLED'));
+CREATE TABLE IF NOT EXISTS ticket_tasks(id uuid PRIMARY KEY,request_id uuid NOT NULL REFERENCES requests,title text NOT NULL CHECK(length(title) BETWEEN 1 AND 200),assignee_id uuid NOT NULL REFERENCES users,priority text NOT NULL CHECK(priority IN('LOW','NORMAL','HIGH','URGENT')),deadline timestamptz,status text NOT NULL DEFAULT 'OPEN' CHECK(status IN('OPEN','IN_PROGRESS','DONE','CANCELLED')),completed_at timestamptz,created_by uuid NOT NULL REFERENCES users,created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now(),CHECK((status='DONE')=(completed_at IS NOT NULL)));
+CREATE INDEX IF NOT EXISTS ticket_tasks_assignee_status ON ticket_tasks(assignee_id,status,deadline);
+CREATE INDEX IF NOT EXISTS ticket_tasks_request ON ticket_tasks(request_id,created_at);
+CREATE INDEX IF NOT EXISTS requests_sla_due ON requests(sla_due_at) WHERE status NOT IN('COMPLETED','REJECTED','CANCELLED');
+CREATE INDEX IF NOT EXISTS requests_deadline ON requests(deadline) WHERE status NOT IN('COMPLETED','REJECTED','CANCELLED');
+CREATE OR REPLACE FUNCTION ticket_final_guard() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN
+ IF TG_OP='DELETE' OR OLD.status IN('COMPLETED','REJECTED','CANCELLED') OR NEW.owner_id<>OLD.owner_id OR (OLD.accepted_at IS NOT NULL AND (NEW.accepted_at IS DISTINCT FROM OLD.accepted_at OR NEW.accepted_by IS DISTINCT FROM OLD.accepted_by)) THEN RAISE EXCEPTION 'Final ticket or acceptance cannot be rewritten' USING ERRCODE='23514'; END IF;RETURN NEW;END $$;
+DROP TRIGGER IF EXISTS ticket_final_guard ON requests;
+CREATE TRIGGER ticket_final_guard BEFORE UPDATE OR DELETE ON requests FOR EACH ROW EXECUTE FUNCTION ticket_final_guard();
+COMMIT;
