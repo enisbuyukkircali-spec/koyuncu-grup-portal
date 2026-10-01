@@ -1,5 +1,4 @@
 'use client';
-import {recordPerf,readyPerf} from './PerfProbe';
 import {useEffect,useState,useRef} from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -9,7 +8,7 @@ type Row=Record<string,any>;
 const sectionNames:Record<string,string>={overview:'Yönetim Özeti',users:'Kullanıcılar',companies:'Şirketler',locations:'Lokasyonlar',departments:'Departmanlar',units:'Birimler','job-titles':'Ünvanlar',roles:'Roller & Yetkiler',settings:'Sistem Ayarları'};
 const permissionResource=(s:string)=>s==='job-titles'?'jobtitles':s;
 const statusLabels:Record<string,string>={ACTIVE:'Aktif',INACTIVE:'Pasif',ON_LEAVE:'İzinli',LEFT:'Ayrıldı'};
-async function api(path:string,method='GET',body?:unknown){const r=await fetch('/api/admin/'+path+(typeof window!=='undefined'&&location.search.includes('kg_plan')?(path.includes('?')?'&':'?')+'kg_plan=1':''),{method,cache:'no-store',...(body?{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{})});const result=await r.json();const perf=r.headers.get('X-KG-Perf');if(perf)recordPerf('api',{path,profile:JSON.parse(perf),plans:r.headers.get('X-KG-Plans')?JSON.parse(r.headers.get('X-KG-Plans')!):undefined});if(!r.ok){if(r.status===401)window.location.assign('/login');throw Error(result.error??'İşlem tamamlanamadı.');}return result;}
+async function api(path:string,method='GET',body?:unknown){const r=await fetch('/api/admin/'+path,{method,cache:'no-store',...(body?{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{})});const result=await r.json();if(!r.ok){if(r.status===401)window.location.assign('/login');throw Error(result.error??'İşlem tamamlanamadı.');}return result;}
 function Field({label,children}:{label:string;children:React.ReactNode}){return <label className="a-field"><span>{label}</span>{children}</label>}
 function format(value:unknown){if(!value)return '—';const s=String(value);return /^\d{4}-\d{2}-\d{2}T/.test(s)?new Date(s).toLocaleString('tr-TR'):s;}
 const userEmpty:Row={personnel_no:'',first_name:'',last_name:'',email:'',username:'',phone:'',extension:'',photo:null,company_id:null,location_id:null,department_id:null,unit_id:null,job_title_id:null,manager_user_id:null,start_date:null,employee_type_id:'FULL_TIME',status:'ACTIVE',role_ids:['EMPLOYEE'],overrides:{}};
@@ -28,7 +27,7 @@ export default function AdminPanel({actor,section,path,initialData}:{actor:Ident
  if(userForm||userId)await optionsTask;
  if(!current())return;
  if(section==='users'&&userId&&result){setData(result);setForm({...userEmpty,...result.user,start_date:result.user.start_date?.slice(0,10)??null,role_ids:result.roles,overrides:Object.fromEntries(result.overrides.map((p:Row)=>[p.permission_id,p.allowed]))});}else if(isNew){setForm({...userEmpty});}else if(result){setData(result);}
- }catch(e){if(current())setError((e as Error).message);}finally{if(current()){setLoading(false);readyPerf('table-ready');}}};
+ }catch(e){if(current())setError((e as Error).message);}finally{if(current()){setLoading(false);}}};
  useEffect(()=>{const timeout=setTimeout(()=>void load(),filters.q?250:0);return()=>clearTimeout(timeout);},[section,path.join('/'),JSON.stringify(filters)]); // Each server request independently verifies permissions.
  async function action(fn:()=>Promise<Row>,after?:()=>void){setBusy(true);setError('');setNotice('');try{const result=await fn();if(result.temporaryPassword)setSecret(result.temporaryPassword);setNotice('İşlem başarıyla tamamlandı.');after?.();return result;}catch(e){setError((e as Error).message);}finally{setBusy(false);}}
  const set=(key:string,value:unknown)=>setForm(prev=>({...prev,[key]:value,...(key==='company_id'?{location_id:null,department_id:null,unit_id:null,job_title_id:null}:{}),...(key==='department_id'?{unit_id:null,job_title_id:null}:{})}));
