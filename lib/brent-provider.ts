@@ -22,6 +22,6 @@ export function parseBrent(html:string):BrentData{
  if(!latest)throw Error('Brent unavailable');return latest;
 }
 export async function fetchBrent():Promise<ProviderResult<BrentData>>{
- const response=await fetch(BRENT_SOURCE_URL,{cache:'no-store',signal:AbortSignal.timeout(6000)});
+ const response=await fetch(BRENT_SOURCE_URL,{cache:'no-store',signal:AbortSignal.timeout(15000)});
  if(!response.ok)throw Error('Brent unavailable');return {data:parseBrent(await response.text())};
 }
