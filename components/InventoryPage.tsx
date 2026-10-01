@@ -1,0 +1,6 @@
+import {notFound,redirect} from 'next/navigation';
+import {Identity,can} from '@/lib/permissions';
+import {inventoryDetail,listInventory,listCategories,listAssignments} from '@/lib/inventory';
+import {AppError} from '@/lib/security';
+import InventoryPanel from './InventoryPanel';
+export default async function InventoryPage({actor,path}:{actor:Identity;path:string[]}){const category=path[1]==='categories',assignment=path[0]==='assignments',isNew=path[1]==='new',id=!category&&!assignment&&!isNew?path[1]:undefined;const edit=path[2]==='edit';if(assignment&&path.length!==1||category&&path.length!==2||isNew&&path.length!==2||path.length>3||path[2]&&!edit)notFound();const permission=assignment?'assignments.view':category?'inventory_categories.view':isNew?'inventory.create':edit?'inventory.edit':'inventory.view';if(!can(actor,permission)||(edit&&!can(actor,'inventory.view')))redirect('/forbidden');if(id&&!/^[0-9a-f-]{36}$/i.test(id))notFound();let initial;try{initial=isNew?{}:category?await listCategories(actor):assignment?await listAssignments(actor):id?await inventoryDetail(actor,id):await listInventory(actor);}catch(e){if(e instanceof AppError&&e.status===404)notFound();throw e;}return <InventoryPanel key={path.join('/')} actor={actor} path={path} initial={JSON.parse(JSON.stringify(initial))}/>;}

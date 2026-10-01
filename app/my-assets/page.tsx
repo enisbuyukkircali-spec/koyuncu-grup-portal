@@ -1,0 +1,8 @@
+import Link from 'next/link';
+import {requireIdentity} from '@/lib/auth';
+import {ownAssets} from '@/lib/inventory';
+import AssetCards from '@/components/AssetCards';
+import ProfileMenu from '@/components/ProfileMenu';
+import {notFound} from 'next/navigation';
+export const dynamic='force-dynamic';
+export default async function MyAssets({searchParams}:{searchParams:Promise<Record<string,string|string[]|undefined>>}){const actor=await requireIdentity('portal.assets.view');const params=await searchParams;if(Object.keys(params).some(k=>!['history','page'].includes(k)))notFound();const history=params.history==='1';const page=Number(params.page??1);if(!Number.isInteger(page)||page<1||page>100000||Array.isArray(params.history))notFound();const query=new URLSearchParams({history:history?'1':'0',page:String(page)});const data=await ownAssets(actor,query);return <div><header className="admin-header"><Link className="a-link" href="/">← Çalışan Portalı</Link><ProfileMenu actor={actor}/></header><main className="admin-content" style={{maxWidth:1100,margin:'auto'}}><h1>Zimmetlerim</h1><div className="a-actions"><Link className={history?'a-button':'a-primary'} href="/my-assets">Aktif Zimmetler</Link><Link className={history?'a-primary':'a-button'} href="/my-assets?history=1">Geçmiş Zimmetler</Link></div><section className="panel assets"><AssetCards rows={data.rows} history={history}/></section><div className="a-actions">{page>1&&<Link className="a-button" href={'/my-assets?history='+(history?'1':'0')+'&page='+(page-1)}>Önceki</Link>}<span>{data.total} kayıt · Sayfa {page}</span>{page*20<data.total&&<Link className="a-button" href={'/my-assets?history='+(history?'1':'0')+'&page='+(page+1)}>Sonraki</Link>}</div></main></div>}
