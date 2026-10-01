@@ -13,17 +13,18 @@ async function api(path:string,method='GET',body?:unknown){const r=await fetch('
 function Field({label,children}:{label:string;children:React.ReactNode}){return <label className="a-field"><span>{label}</span>{children}</label>}
 function format(value:unknown){if(!value)return '—';const s=String(value);return /^\d{4}-\d{2}-\d{2}T/.test(s)?new Date(s).toLocaleString('tr-TR'):s;}
 const userEmpty:Row={personnel_no:'',first_name:'',last_name:'',email:'',username:'',phone:'',extension:'',photo:null,company_id:null,location_id:null,department_id:null,unit_id:null,job_title_id:null,manager_user_id:null,start_date:null,employee_type_id:'FULL_TIME',status:'ACTIVE',role_ids:['EMPLOYEE'],overrides:{}};
-export default function AdminPanel({actor,section,path}:{actor:Identity;section:string;path:string[]}){
- const[data,setData]=useState<Row>({}),[options,setOptions]=useState<Row>({}),[form,setForm]=useState<Row>({...userEmpty}),[error,setError]=useState(''),[notice,setNotice]=useState(''),[secret,setSecret]=useState(''),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[editor,setEditor]=useState<Row|null>(null),[filters,setFilters]=useState<Row>({q:'',page:1,sort:'name',dir:'asc'}),[managerQuery,setManagerQuery]=useState('');
+export default function AdminPanel({actor,section,path,initialData}:{actor:Identity;section:string;path:string[];initialData?:Row}){
+ const[data,setData]=useState<Row>(initialData??{}),[options,setOptions]=useState<Row>({}),[form,setForm]=useState<Row>({...userEmpty}),[error,setError]=useState(''),[notice,setNotice]=useState(''),[secret,setSecret]=useState(''),[busy,setBusy]=useState(false),[loading,setLoading]=useState(initialData===undefined),[editor,setEditor]=useState<Row|null>(null),[filters,setFilters]=useState<Row>({q:'',page:1,sort:'name',dir:'asc'}),[managerQuery,setManagerQuery]=useState('');
+ const initialConsumed=useRef(false);
  const loadSequence=useRef(0);const[optionsLoading,setOptionsLoading]=useState(true);
  const userId=section==='users'&&path[1]&&path[1]!=='new'?path[1]:undefined;const isNew=section==='users'&&path[1]==='new',isEdit=section==='users'&&path[2]==='edit';const userForm=isNew||isEdit;
  const permit=(action:string,s=section)=>canAction(actor,permissionResource(s),action);
- const load=async()=>{const sequence=++loadSequence.current;const current=()=>sequence===loadSequence.current;setError('');setLoading(true);try{
+ const load=async()=>{const sequence=++loadSequence.current;const current=()=>sequence===loadSequence.current;const useInitial=initialData!==undefined&&!initialConsumed.current;initialConsumed.current=true;setError('');setLoading(!useInitial);try{
  if(section==='overview'){const result=await api('summary');if(current())setData(result);return;}if(section==='settings')return;
  setOptionsLoading(section!=='roles');setOptions({});
  const optionsTask=(section==='roles'?Promise.resolve({}):api('options')).then(opts=>{if(current())setOptions(opts);}).catch(e=>{if(current())setError((e as Error).message);}).finally(()=>{if(current())setOptionsLoading(false);});
  const query=new URLSearchParams(Object.entries(filters).filter(([,v])=>v!==''&&v!==null).map(([k,v])=>[k,String(v)]));
- const result=isNew?null:await api(section==='users'&&userId?'users/'+userId:section+'?'+query);
+ const result=useInitial?initialData:isNew?null:await api(section==='users'&&userId?'users/'+userId:section+'?'+query);
  if(userForm||userId)await optionsTask;
  if(!current())return;
  if(section==='users'&&userId&&result){setData(result);setForm({...userEmpty,...result.user,start_date:result.user.start_date?.slice(0,10)??null,role_ids:result.roles,overrides:Object.fromEntries(result.overrides.map((p:Row)=>[p.permission_id,p.allowed]))});}else if(isNew){setForm({...userEmpty});}else if(result){setData(result);}
