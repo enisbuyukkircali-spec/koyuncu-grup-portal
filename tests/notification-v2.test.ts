@@ -1,0 +1,30 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+import {readFile} from 'node:fs/promises';
+import {PGlite} from '@electric-sql/pglite';
+import {pg_trgm} from '@electric-sql/pglite/contrib/pg_trgm';
+import {injectTestDB} from '../lib/db';
+import {seed} from '../lib/seed';
+import {identityFor} from '../lib/auth-core';
+import * as c from '../lib/content';
+import {createNotification,syncPersonalNotifications} from '../lib/notifications';
+import {emailProvider} from '../lib/email-provider';
+test('Phase 2A-10 outbox and acknowledgement integrity',async t=>{
+ Object.assign(process.env,{NODE_ENV:'test'});const pg=new PGlite({extensions:{pg_trgm}});const db={query:async(sql:string,args?:unknown[])=>pg.query<any>(sql,args)};injectTestDB(db);
+ for(const f of ['001_phase2.sql','003_content.sql','005_workflows.sql','006_engagement.sql','008_directory.sql','009_brand_center.sql','010_notification_v2.sql'])await pg.exec(await readFile('db/'+f,'utf8'));await seed(db);
+ const root=randomUUID(),emp=randomUUID(),other=randomUUID();for(const [id,role]of [[root,'SUPER_ADMIN'],[emp,'EMPLOYEE'],[other,'EMPLOYEE']]){await db.query("INSERT INTO users(id,personnel_no,first_name,last_name,email,username,must_change_password) VALUES($1::uuid,$3,'Test','User',$2,$3,false)",[id,id+'@example.test',id]);await db.query('INSERT INTO user_roles VALUES($1,$2)',[id,role]);}
+ const admin=(await identityFor(db,root))!,employee=(await identityFor(db,emp))!,outsider=(await identityFor(db,other))!;
+ const category=(await db.query("SELECT id FROM announcements_categories WHERE name='Genel'")).rows[0].id;
+ const base={title:'Read me',summary:'Summary',body:'Text',category_id:category,publish_at:new Date(Date.now()-60000).toISOString(),audience_all:false,targets:[{type:'user_id',id:emp}],priority:2,pinned:true,acknowledgement_required:true};let id='';
+ await t.test('migration is repeatable',async()=>{await pg.exec(await readFile('db/010_notification_v2.sql','utf8'));});
+ await t.test('disabled provider never sends or throws',async()=>{assert.equal(emailProvider.state,'DISABLED');assert.equal((await emailProvider.send({recipient:'test@example.test',subject:'Test',eventType:'test',payload:{}})).status,'ProviderDisabled');});
+ await t.test('publish creates exactly one targeted notification and outbox',async()=>{id=(await c.saveContent(admin,'announcements',base)).id;await c.contentAction(admin,'announcements',id,'publish');await c.contentAction(admin,'announcements',id,'publish');assert.equal((await db.query('SELECT * FROM workflow_notifications WHERE entity_id=$1',[id])).rows.length,1);const rows=(await db.query('SELECT * FROM email_outbox')).rows;assert.equal(rows.length,1);assert.equal(rows[0].recipient_id,emp);assert.equal(rows[0].status,'ProviderDisabled');});
+ await t.test('acknowledgement is self-scoped and idempotent',async()=>{await assert.rejects(()=>c.acknowledgeContent(outsider,'announcements','read-me',{revision:1}),{status:404});await c.acknowledgeContent(employee,'announcements','read-me',{revision:1});await c.acknowledgeContent(employee,'announcements','read-me',{revision:1});assert.equal((await c.acknowledgementReport(admin,'announcements',id)).acknowledged,1);await assert.rejects(()=>c.acknowledgementReport(employee,'announcements',id),{status:403});});
+ await t.test('new content revision retains history and requires acknowledgement again',async()=>{await c.saveContent(admin,'announcements',{...base,body:'Updated text'},id);assert.equal((await c.acknowledgementReport(admin,'announcements',id)).pending,1);await assert.rejects(()=>c.acknowledgeContent(employee,'announcements','read-me',{revision:1}),{status:409});await c.acknowledgeContent(employee,'announcements','read-me',{revision:2});assert.equal((await db.query('SELECT * FROM content_acknowledgements')).rows.length,2);assert.equal((await db.query('SELECT * FROM content_revisions WHERE content_id=$1',[id])).rows.length,2);});
+ await t.test('pinning wins over newer unpinned content',async()=>{const second=await c.saveContent(admin,'announcements',{...base,title:'Newer',pinned:false,publish_at:new Date().toISOString()});await c.contentAction(admin,'announcements',second.id,'publish');assert.equal((await c.publicContentList(employee,'announcements')).rows[0].id,id);});
+ await t.test('notification and outbox rollback together',async()=>{const event=randomUUID();await db.query('BEGIN');await createNotification(db,{recipient:emp,event:'test.rollback',entityId:event,type:'SYSTEM',title:'Rollback',link:'/notifications',key:event});await db.query('ROLLBACK');assert.equal((await db.query('SELECT * FROM email_outbox WHERE event_type=$1',['test.rollback'])).rows.length,0);});
+ await t.test('birthday is private opt-in date-only and deduplicated',async()=>{await db.query("UPDATE users SET birth_date=(now() AT TIME ZONE 'Europe/Istanbul')::date,show_birthday=true WHERE id=$1",[emp]);await syncPersonalNotifications(employee);await syncPersonalNotifications(employee);const rows=(await db.query("SELECT * FROM workflow_notifications WHERE event='birthday.today'")).rows;assert.equal(rows.length,1);assert.equal(rows[0].recipient_id,emp);await db.query('UPDATE users SET show_birthday=false WHERE id=$1',[other]);await syncPersonalNotifications(outsider);assert.equal((await db.query("SELECT * FROM workflow_notifications WHERE event='birthday.today'")).rows.length,1);});
+ await t.test('expired content cannot be acknowledged',async()=>{await db.query("UPDATE announcements SET publish_at=now()-interval '2 days',expires_at=now()-interval '1 day' WHERE id=$1",[id]);await assert.rejects(()=>c.acknowledgeContent(employee,'announcements','read-me',{revision:3}),{status:404});});
+ await pg.close();
+});
