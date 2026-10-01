@@ -2,6 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {PGlite} from '@electric-sql/pglite';
+import {pg_trgm} from '@electric-sql/pglite/contrib/pg_trgm';
 import {injectTestDB} from '../lib/db';
 import {bootstrap} from '../lib/seed';
 import {login,changePassword,sessionIdentity,logout,identityFor} from '../lib/auth-core';
@@ -9,7 +10,7 @@ import {saveUser,saveOrg,saveRole,userAction,adminRead} from '../lib/admin';
 import {assertOrigin,digest} from '../lib/security';
 import {can} from '../lib/permissions';
 test('Phase 2A-1 PostgreSQL integration',async t=>{
- Object.assign(process.env,{NODE_ENV:'test'});const pg=new PGlite();await pg.exec(await readFile('db/001_phase2.sql','utf8'));const db={query:async(text:string,values?:unknown[])=>pg.query<any>(text,values)};injectTestDB(db);
+ Object.assign(process.env,{NODE_ENV:'test'});const pg=new PGlite({extensions:{pg_trgm}});await pg.exec(await readFile('db/001_phase2.sql','utf8'));await pg.exec(await readFile('db/003_content.sql','utf8'));await pg.exec(await readFile('db/005_workflows.sql','utf8'));await pg.exec(await readFile('db/008_directory.sql','utf8'));const db={query:async(text:string,values?:unknown[])=>pg.query<any>(text,values)};injectTestDB(db);
  const rootId=await bootstrap('root@example.test','root','Root-test-923!');let root=(await identityFor(db,rootId))!;let employeeId='',companyId='',departmentId='',token='';
  const payload={personnel_no:'P001',first_name:'Test',last_name:'Person',email:'person@example.test',username:'person',status:'ACTIVE',role_ids:['EMPLOYEE'],overrides:{},temporary_password:'Temp-test-923!'};
  await t.test('bootstrap forces change and stores salted hash',async()=>{assert.equal(root.must_change_password,true);const r=await db.query('SELECT password_hash FROM credentials');assert.match(r.rows[0].password_hash,/^scrypt\$/);});

@@ -1,0 +1,5 @@
+import {currentIdentity} from '@/lib/auth';
+import {AppError} from '@/lib/security';
+import {json,fail} from '@/lib/http';
+import * as d from '@/lib/directory';
+export async function GET(request:Request,{params}:{params:Promise<{path?:string[]}>}){try{const a=await currentIdentity();if(!a||a.must_change_password)throw new AppError(401,'Yeniden giriş yapın.');const path=(await params).path??[],p=new URL(request.url).searchParams;if(path.length>1)throw new AppError(404,'Bulunamadı.');if(path[0]==='options')return json(await d.directoryOptions(a));if(path[0]==='backups')return json(await d.backupCandidates(a,p));if(path[0])return json(await d.personDetail(a,path[0]));const compact=p.get('compact')==='1',includeBirthdays=p.get('birthdays')==='1';p.delete('compact');p.delete('birthdays');const [list,birthdays,options]=await Promise.all([d.directoryList(a,p,compact),includeBirthdays?d.birthdays(a):undefined,includeBirthdays?d.directoryOptions(a):undefined]);return json({...list,...(includeBirthdays?{birthdays,options}:{})});}catch(e){return fail(e);}}

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {randomUUID} from 'node:crypto';
 import {PGlite} from '@electric-sql/pglite';
+import {pg_trgm} from '@electric-sql/pglite/contrib/pg_trgm';
 import React from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {injectTestDB} from '../lib/db';
@@ -14,8 +15,8 @@ import * as cms from '../lib/content';
 import {ContentKind,homepageDefaults,slugify} from '../lib/content-shared';
 import {AnnouncementBlock,NewsBlock} from '../components/DashboardContentBlocks';
 test('Phase 2A-3 PostgreSQL content integration',async t=>{
- Object.assign(process.env,{NODE_ENV:'test'});const pg=new PGlite();const db={query:async(sql:string,values?:unknown[])=>pg.query<any>(sql,values)};injectTestDB(db);for(const file of ['001_phase2.sql','002_inventory.sql','003_content.sql'])await pg.exec(await readFile('db/'+file,'utf8'));
- await pg.exec(await readFile('db/005_workflows.sql','utf8'));await pg.exec(await readFile('db/006_engagement.sql','utf8'));
+ Object.assign(process.env,{NODE_ENV:'test'});const pg=new PGlite({extensions:{pg_trgm}});const db={query:async(sql:string,values?:unknown[])=>pg.query<any>(sql,values)};injectTestDB(db);for(const file of ['001_phase2.sql','002_inventory.sql','003_content.sql'])await pg.exec(await readFile('db/'+file,'utf8'));
+ await pg.exec(await readFile('db/005_workflows.sql','utf8'));await pg.exec(await readFile('db/006_engagement.sql','utf8'));await pg.exec(await readFile('db/003_content.sql','utf8'));await pg.exec(await readFile('db/005_workflows.sql','utf8'));await pg.exec(await readFile('db/008_directory.sql','utf8'));
  const rootId=await bootstrap('root@example.test','root','Root-test-923!');await db.query('UPDATE users SET must_change_password=false WHERE id=$1',[rootId]);const root=(await identityFor(db,rootId))!;
  const employeeId=randomUUID(),otherId=randomUUID(),editorId=randomUUID();for(const [id,name,role]of [[employeeId,'employee','EMPLOYEE'],[otherId,'other','EMPLOYEE'],[editorId,'editor','CONTENT_ADMIN']]){await db.query("INSERT INTO users(id,personnel_no,first_name,last_name,email,username,status,must_change_password) VALUES($1,$2,$2,'Test',$3,$2,'ACTIVE',false)",[id,name,name+'@example.test']);await db.query('INSERT INTO user_roles VALUES($1,$2)',[id,role]);}
  const employee=(await identityFor(db,employeeId))!,other=(await identityFor(db,otherId))!,editor=(await identityFor(db,editorId))!;
@@ -24,7 +25,7 @@ test('Phase 2A-3 PostgreSQL content integration',async t=>{
  const categories:Record<string,string>={};for(const kind of ['announcements','news','documents'] as ContentKind[])categories[kind]=(await cms.contentOptions(root,kind)).categories[0].id;
  const common=(kind:ContentKind,title:string,extra:Record<string,unknown>={})=>({title,summary:'Summary',body:'Body <script>alert(1)</script>',cover:null,thumbnail:null,author_id:rootId,priority:0,publish_at:past,expires_at:null,audience_all:true,targets:[],...(kind!=='events'?{category_id:categories[kind]}:{}),...extra});
  let announcement='',event='',eventSlug='',document='',docSlug='';
- await t.test('repeatable migration and seeded category IDs validate',async()=>{await pg.exec(await readFile('db/003_content.sql','utf8'));assert.equal((await cms.contentOptions(root,'announcements')).categories.length,7);});
+ await t.test('repeatable migration and seeded category IDs validate',async()=>{await pg.exec(await readFile('db/003_content.sql','utf8'));assert.equal((await cms.contentOptions(root,'announcements')).categories.length,10);});
  await t.test('create draft announcement and normalize Turkish slug',async()=>{announcement=(await cms.saveContent(editor,'announcements',common('announcements','İş Güvenliği Duyurusu'))).id;const d=await cms.adminContentDetail(root,'announcements',announcement);assert.equal(d.item.slug,'is-guvenligi-duyurusu');assert.equal(d.item.status,'DRAFT');assert.equal(slugify('Çığ Şöleni Ürün'),'cig-soleni-urun');});
  await t.test('draft invisible in list dashboard and direct detail',async()=>{assert.equal((await cms.publicContentList(employee,'announcements')).total,0);assert.equal((await cms.dashboardContent(employee)).announcements.length,0);await assert.rejects(()=>cms.publicContentDetail(employee,'announcements','is-guvenligi-duyurusu'),{status:404});});
  await t.test('published announcement visible and body stays outside dashboard query',async()=>{await cms.contentAction(editor,'announcements',announcement,'publish');assert.equal((await cms.publicContentList(employee,'announcements')).total,1);const rows=(await cms.dashboardContent(employee)).announcements;assert.equal(rows[0].id,announcement);assert.ok(!('body' in rows[0]));});

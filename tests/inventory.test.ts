@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {randomUUID} from 'node:crypto';
 import {PGlite} from '@electric-sql/pglite';
+import {pg_trgm} from '@electric-sql/pglite/contrib/pg_trgm';
 import React from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {injectTestDB,transaction} from '../lib/db';
@@ -13,8 +14,8 @@ import {can} from '../lib/permissions';
 import * as inv from '../lib/inventory';
 import AssetCards from '../components/AssetCards';
 test('Phase 2A-2 PostgreSQL integration',async t=>{
- Object.assign(process.env,{NODE_ENV:'test'});const pg=new PGlite();const db={query:async(sql:string,values?:unknown[])=>pg.query<any>(sql,values)};injectTestDB(db);
- await pg.exec(await readFile('db/001_phase2.sql','utf8'));await pg.exec(await readFile('db/002_inventory.sql','utf8'));
+ Object.assign(process.env,{NODE_ENV:'test'});const pg=new PGlite({extensions:{pg_trgm}});const db={query:async(sql:string,values?:unknown[])=>pg.query<any>(sql,values)};injectTestDB(db);
+ await pg.exec(await readFile('db/001_phase2.sql','utf8'));await pg.exec(await readFile('db/003_content.sql','utf8'));await pg.exec(await readFile('db/005_workflows.sql','utf8'));await pg.exec(await readFile('db/008_directory.sql','utf8'));await pg.exec(await readFile('db/002_inventory.sql','utf8'));
  await pg.exec(await readFile('db/005_workflows.sql','utf8'));await pg.exec(await readFile('db/006_engagement.sql','utf8'));
  const rootId=await bootstrap('root@example.test','root','Root-test-923!');await db.query('UPDATE users SET must_change_password=false WHERE id=$1',[rootId]);const root=(await identityFor(db,rootId))!;
  const employeeId=randomUUID(),otherId=randomUUID(),itId=randomUUID();for(const [id,name,role] of [[employeeId,'Employee','EMPLOYEE'],[otherId,'Other','EMPLOYEE'],[itId,'IT','IT_ADMIN']]){await db.query("INSERT INTO users(id,personnel_no,first_name,last_name,email,username,status,must_change_password) VALUES($1,$2,$2,'Test',$3,$4,'ACTIVE',false)",[id,name,name.toLowerCase()+'@example.test',name.toLowerCase()]);await db.query('INSERT INTO user_roles VALUES($1,$2)',[id,role]);}
