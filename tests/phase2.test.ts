@@ -30,6 +30,29 @@ test('Phase 2A-1 PostgreSQL integration',async t=>{
  await t.test('reactivate and password reset',async()=>{await userAction(root,employeeId,'status',{status:'ACTIVE'});const reset=await userAction(root,employeeId,'reset-password',{});assert.ok('temporaryPassword' in reset);const s=await login('person',reset.temporaryPassword!,false,'2');assert.equal(s.actor.must_change_password,true);});
  await t.test('last super cannot deactivate self',async()=>{await assert.rejects(()=>userAction(root,rootId,'status',{status:'INACTIVE'}),{status:400});});
  await t.test('custom role persistence',async()=>{await saveRole(root,{id:'AUDITOR',name:'Auditor',active:true,permissions:['portal.home.view']});assert.equal((await db.query("SELECT permission_id FROM role_permissions WHERE role_id='AUDITOR'")).rows.length,1);});
+ await t.test('lookup snapshot preserves arrays, relations and access checks',async()=>{
+  const opts=await adminRead(root,'options',new URL('https://portal.test/api/admin/options')) as any;
+  for(const key of ['companies','locations','departments','units','job-titles','managers','employeeTypes','roles','rolePermissions'])assert.ok(Array.isArray(opts[key]),key);
+  assert.equal(opts.departments.find((r:any)=>r.id===departmentId).company_id,companyId);
+  assert.ok(opts.roles.some((r:any)=>r.id==='SUPER_ADMIN'));
+  const employee=(await identityFor(db,employeeId))!;await assert.rejects(()=>adminRead(employee,'options',new URL('https://portal.test')),{status:403});
+ });
+ await t.test('fresh session snapshot enforces role changes, overrides and expiry',async()=>{
+  const {newToken}=await import('../lib/security');const fresh=newToken();
+  await db.query("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES($1,$2,now()+interval '1 hour')",[digest(fresh),employeeId]);
+  await db.query("INSERT INTO user_roles VALUES($1,'AUDITOR')",[employeeId]);
+  await db.query("INSERT INTO role_permissions VALUES('AUDITOR','users.view')");
+  assert.equal(can((await sessionIdentity(fresh))!,'users.view'),true);
+  await db.query("UPDATE roles SET active=false WHERE id='AUDITOR'");
+  assert.equal(can((await sessionIdentity(fresh))!,'users.view'),false);
+  await db.query("INSERT INTO user_permission_overrides VALUES($1,'users.view',true)",[employeeId]);
+  assert.equal(can((await sessionIdentity(fresh))!,'users.view'),true);
+  await db.query("UPDATE user_permission_overrides SET allowed=false WHERE user_id=$1 AND permission_id='users.view'",[employeeId]);
+  assert.equal(can((await sessionIdentity(fresh))!,'users.view'),false);
+  await db.query("UPDATE users SET status='INACTIVE' WHERE id=$1",[employeeId]);assert.equal(await sessionIdentity(fresh),null);
+  await db.query("UPDATE users SET status='ACTIVE' WHERE id=$1",[employeeId]);
+  await db.query("UPDATE sessions SET expires_at=now()-interval '1 second' WHERE token_hash=$1",[digest(fresh)]);assert.equal(await sessionIdentity(fresh),null);
+ });
  await t.test('logout invalidates token',async()=>{await logout(token);assert.equal(await sessionIdentity(token),null);});
  await t.test('CSRF rejects foreign or absent origins',()=>{for(const origin of ['', 'https://evil.test'])assert.throws(()=>assertOrigin(new Request('https://portal.test/api/auth/login',{headers:{origin,'content-type':'application/json'}})),{status:403});});
  await t.test('audit excludes credentials',async()=>{const rows=(await db.query('SELECT * FROM audit_logs')).rows;assert.ok(rows.length>4);assert.ok(!JSON.stringify(rows).includes('923!'));});
