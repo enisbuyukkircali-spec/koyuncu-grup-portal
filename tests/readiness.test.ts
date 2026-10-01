@@ -22,7 +22,7 @@ test('V1 audit: seven roles, sessions, dashboard and scope',async t=>{
  Object.assign(process.env,{NODE_ENV:'test'});
  const pg=new PGlite({extensions:{pg_trgm,btree_gist}});let queries:string[]=[];
  const db={query:async(sql:string,values?:unknown[])=>{queries.push(sql);return pg.query<any>(sql,values);}};injectTestDB(db);
- for(const file of ['001_phase2.sql','002_inventory.sql','003_content.sql','004_dashboard_cache.sql','005_workflows.sql','006_engagement.sql','007_meetings.sql','008_directory.sql','009_brand_center.sql','006_engagement.sql','010_notification_v2.sql','011_ticket_v2.sql'])await pg.exec(await readFile('db/'+file,'utf8'));
+ for(const file of ['001_phase2.sql','002_inventory.sql','003_content.sql','004_dashboard_cache.sql','005_workflows.sql','006_engagement.sql','007_meetings.sql','008_directory.sql','009_brand_center.sql','006_engagement.sql','010_notification_v2.sql','011_ticket_v2.sql','013_people_assets.sql'])await pg.exec(await readFile('db/'+file,'utf8'));
  await seed(db);const hash=await hashPassword('Audit-test-923!');
  for(const role of Object.keys(initialRoles))await t.test(role+' login / dashboard / authorized and denied operations / logout',async()=>{
   const id=randomUUID(),name=role.toLowerCase();

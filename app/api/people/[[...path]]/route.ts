@@ -1,0 +1,7 @@
+import {currentIdentity} from '@/lib/auth';
+import {AppError,readJSON} from '@/lib/security';
+import {json,fail} from '@/lib/http';
+import {proofResponse} from '@/lib/proof-files';
+import * as people from '@/lib/people';
+export async function GET(req:Request,ctx:{params:Promise<{path?:string[]}>}){try{const a=await currentIdentity();if(!a||a.must_change_password)throw new AppError(401,'Yeniden giriş yapın.');const p=(await ctx.params).path??[];if(p.length===2&&p[0]==='certificate')return proofResponse(await people.trainingFile(a,p[1]));throw new AppError(404,'Bulunamadı.');}catch(e){return fail(e);}}
+export async function POST(req:Request,ctx:{params:Promise<{path?:string[]}>}){try{const a=await currentIdentity();if(!a||a.must_change_password)throw new AppError(401,'Yeniden giriş yapın.');const p=(await ctx.params).path??[],d=await readJSON(req);if(p.length===1){if(p[0]==='checklists')return json(await people.saveChecklist(a,d));if(p[0]==='departure')return json(await people.saveDeparture(a,d));if(p[0]==='courses')return json(await people.saveCourse(a,d));if(p[0]==='assign')return json(await people.assignTraining(a,d));}if(p.length===2){if(p[0]==='complete')return json(await people.completeChecklist(a,p[1],typeof d.reason==='string'?d.reason:''));if(p[0]==='task')return json(await people.completePeopleTask(a,p[1],d.admin===true));if(p[0]==='training')return json(await people.completeTraining(a,p[1],d));}throw new AppError(404,'Bulunamadı.');}catch(e){return fail(e);}}

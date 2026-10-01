@@ -20,3 +20,11 @@
 - Anonymous participation deduplication is separate from randomly identified answers. Answers have no user, participation link, timestamp or demographic snapshot. Results expose aggregates, never response rows/identities. All anonymous results including text are hidden below configurable minimum 5 responses; no small-cohort breakdown endpoint.
 - Published survey questions/audience/privacy are frozen. Submission validates each answer and atomically records participation plus answers; global transaction lock and primary key prevent duplicates. Responses immutable in PostgreSQL.
 - Catalog/admin lists paginated, aggregate participation counts, no per-user result query loop. Draft editor, seven question types, date window, manual publish/close, target audience picker and result summaries.
+
+## Phase 2A-13
+- Onboarding/offboarding checklists reuse User/Department and own-task view. Server ownership/department gates task completion; closing with open tasks/assets requires explicit offboarding.override and reason retained in existing AuditLog details.
+- HR-only departure record; no automatic account closure. Training courses, audience assignment, immutable completed cycles, protected certificates/validity dates. These are the foundation Phase 2A-17 extends, not a parallel LMS.
+- Existing asset assignments snapshot category delivery/return requirements. Immutable handover forms retain separate delivery/return photos, documents, condition and accessory checklists. Owner-only acceptance stores form version/timestamp; no qualified electronic-signature claim. Required return acceptance blocks final return.
+- Delivery acceptance is collected after assignment creation (employee must be able to see the record first); pending acceptance remains visible. Inventory service records append only.
+- Storage uses existing inline PostgreSQL approach: individual file maximum 200 KB, handover attachments combined maximum 220 KB. Large original photos require resizing; no paid storage/provider added.
+- New permissions: training.view_own/manage, onboarding.manage, offboarding.manage/override, departures.manage, people_tasks.view_own/update_own. Existing inventory permissions reused.
