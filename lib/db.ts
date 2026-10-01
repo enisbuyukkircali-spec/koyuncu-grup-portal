@@ -10,7 +10,7 @@ export function database(): DB {
  if(!process.env.DATABASE_URL)throw new Error('DATABASE_NOT_CONFIGURED');
  if(!pool)pool=new Pool({connectionString:process.env.DATABASE_URL,max:3,idleTimeoutMillis:10000,connectionTimeoutMillis:10000});
  if(!trace())return pool as DB;
- return {async query<T>(sql:string,values?:unknown[]){const t=trace()!,start=performance.now();const client=await pool!.connect();const acquired=performance.now(),fresh=!seen.has(client);seen.add(client);try{return await client.query(sql,values) as unknown as {rows:T[]};}finally{t.queries.push({name:queryName(sql),acquire:acquired-start,query:performance.now()-acquired,fresh,sql,values});client.release();}}};
+ return {async query<T>(sql:string,values?:unknown[]){const t=trace()!,start=performance.now();const client=await pool!.connect();const acquired=performance.now(),fresh=!seen.has(client);seen.add(client);try{return await client.query(sql,values) as unknown as {rows:T[]};}finally{t.queries.push({name:queryName(sql),acquire:acquired-start,query:performance.now()-acquired,fresh,sql,values:values?[...values]:undefined});client.release();}}};
 }
 export async function transaction<T>(fn:(db:DB)=>Promise<T>):Promise<T>{
  if(testDB){await testDB.query('BEGIN');try{const value=await fn(testDB);await testDB.query('COMMIT');return value;}catch(e){await testDB.query('ROLLBACK');throw e;}}
