@@ -1,0 +1,14 @@
+export const contentKinds=['announcements','news','events','documents'] as const;
+export type ContentKind=typeof contentKinds[number];
+export const contentNames:Record<ContentKind,string>={announcements:'Duyurular',news:'Haberler',events:'Etkinlikler',documents:'Dokümanlar'};
+export const contentPermissions=[...contentKinds.flatMap(kind=>['view','create','edit','publish','manage'].map(action=>({id:kind+'.'+action,name:contentNames[kind]+' · '+({view:'Görüntüle',create:'Oluştur',edit:'Düzenle',publish:'Yayınla',manage:'Yönet'} as Record<string,string>)[action],group:'Yönetim'}))),{id:'homepage.view',name:'Ana Sayfa · Görüntüle',group:'Yönetim'},{id:'homepage.manage',name:'Ana Sayfa · Yönet',group:'Yönetim'}];
+export const portalContentPermission:Record<ContentKind,string>={announcements:'portal.announcements.view',news:'portal.communications.view',events:'portal.events.view',documents:'portal.documents.view'};
+export const contentStatus:Record<string,string>={DRAFT:'Taslak',PLANNED:'Planlandı',PUBLISHED:'Yayında',EXPIRED:'Süresi Doldu',ARCHIVED:'Arşivlendi',COMPLETED:'Tamamlandı',CANCELLED:'İptal'};
+export const targetNames:Record<string,string>={company_id:'Şirket',location_id:'Lokasyon',department_id:'Departman',unit_id:'Birim',role_id:'Rol',user_id:'Kullanıcı'};
+export const homepageDefaults={hero_title:'Hoş geldin, {ad} 👋',hero_subtitle:'Koyuncu Grup’ta güzel bir gün geçirmeni dileriz.',hero_image:'/images/hero/building.webp',hero_active:true,corporate_image:'/images/hero/lounge.webp',corporate_quote:'“İnsan,\nbaşarımızın\nen önemli gücüdür.”',corporate_caption:'Koyuncu Grup Ailesi',corporate_active:true,announcements_title:'Duyurular',events_title:'Şirket Etkinlikleri',news_title:'Haberler'};
+export type HomepageSettings=typeof homepageDefaults;
+export type ContentRow={id:string;slug:string;title:string;summary:string;cover:string|null;thumbnail:string|null;category_name?:string;publish_at:string;priority:number;event_start?:string;event_end?:string;venue?:string;online?:boolean;online_url?:string;participation_required?:boolean;rsvp_deadline?:string|null;attending?:boolean|null;[key:string]:any};
+export type DashboardContent={announcements:ContentRow[];news:ContentRow[];events:ContentRow[];homepage:HomepageSettings};
+export function slugify(value:string){return value.replace(/[ıİ]/g,'i').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,140).replace(/-$/,'');}
+export function contentDate(value:string|undefined){return value?new Date(value).toLocaleDateString('tr-TR',{timeZone:'Europe/Istanbul',day:'2-digit',month:'long',year:'numeric'}):'—';}
+export function contentTime(value:string|undefined){return value?new Date(value).toLocaleTimeString('tr-TR',{timeZone:'Europe/Istanbul',hour:'2-digit',minute:'2-digit'}):'';}
