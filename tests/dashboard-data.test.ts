@@ -37,3 +37,5 @@ test('durable provider cache and cross-request safety',async t=>{
  await t.test('expiry refreshes durable payload',async()=>{await pg.query("UPDATE dashboard_data_cache SET fresh_until=now()-interval '1 second',retry_at='-infinity' WHERE cache_key='fx'");const result=await providerCache('fx',60000,async()=>({data:{value:99}}));assert.deepEqual(result,{data:{value:99},stale:false});});
  await pg.close();
 });
+
+test('initial external-data loading is not presented as provider failure',()=>{const data={...emptyDashboardData,loading:true,weatherMessage:'Hava durumu yükleniyor…'};const html=renderToStaticMarkup(React.createElement(WeatherCard,{data}))+renderToStaticMarkup(React.createElement(MarketStrip,{data}));assert.match(html,/yükleniyor/);assert.ok(!html.includes('alınamadı'));const failure=renderToStaticMarkup(React.createElement(WeatherCard,{data:emptyDashboardData}));assert.match(failure,/alınamadı/);});

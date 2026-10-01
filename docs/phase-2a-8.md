@@ -11,12 +11,13 @@ No production, DNS, provider, paid service or business schema changes.
 - Upcoming event KPI counted only the three displayed cards. It now counts all accessible future published events in the SAME dashboard SQL query, preserving target-audience rules and the three-card limit.
 - Own profile could not show the employee's own leave type. Self is now included alongside bound manager/HR, with explicit deny still respected. Other employees still receive only operational absence data.
 - Profile/company, inventory and room image inputs accepted forged PNG/JPEG/WebP labels. They now share the existing CMS byte-signature and 200,000-byte validation. Inline storage unchanged; this is format validation, not malware scanning.
+- External-data initial render now says loading instead of briefly reporting a provider failure; provider/cache logic unchanged.
 - Added Turkish 404 and error boundary, labelled 403. No technical error payload exposed.
 - Long cells/forms receive overflow safeguards; current table horizontal scrolling retained.
 
 ## Regression evidence
 
-259/259 tests pass, including original Phases 1–7. Typecheck and Next production build pass.
+260/260 tests pass, including original Phases 1–7. Typecheck and Next production build pass.
 New integration coverage: all seven roles login, one-query fresh session/RBAC, dashboard/agenda/search, permitted and forbidden service access, override refresh, inactive-session denial, logout; bootstrap refuses nonempty systems; forged image rejection; seeds create no business data; event count beyond three cards.
 Existing tests cover owner-only request/leave/suggestion/notification/assets, audience-filtered content/search, birthday year omission, hidden/inactive directory users, exact approver and overrides, approval/ledger replay, room overlap and notification deduplication.
 Tests use isolated PGlite PostgreSQL, not real company records. This is not a seven-account live browser login test or a multi-connection Neon load test.
@@ -32,7 +33,7 @@ Live Neon EXPLAIN/query timings and effective pooled hostname/region were not ac
 
 Authenticated SUPER_ADMIN warm Link/router navigation, same cloud browser, three samples per listed destination; click → URL networkidle wait → rendered main heading observation. Includes automation overhead; NOT raw browser TTFB, SQL time or function cold start. No forced cold-start claim.
 Before p50 milliseconds: users 313, departments 329, inventory 322, admin requests 334, admin leave 293, directory 312, own requests 284, calendar 290. Dashboard median 377 (9 returns). Admin overview 313/446 (2 samples).
-Post-deployment results are reported in the completion message. Measured routes do not reproduce old 2–4 second warm delays, so no speculative DB/auth refactor was made.
+Post-deployment p50 milliseconds: users 316, departments 291, inventory 322, admin requests 270, admin leave 344, directory 366, own requests 299, calendar 371; dashboard 375 (9 returns), admin overview 274. Small samples do not establish statistically significant improvement. Measured routes do not reproduce old 2–4 second warm delays, so no speculative DB/auth refactor was made.
 Desktop live viewport was 1363×936, no document horizontal overflow observed. The available browser API does not offer viewport resizing; real tablet/mobile and touch-swipe validation remains a release gate. Responsive CSS inspection and fixes do not substitute for actual devices.
 
 ## Auth / files / audit logs

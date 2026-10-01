@@ -15,8 +15,9 @@ async function load(user:string){
  }).catch(()=>snapshot?.user===user?{...snapshot.data,fxStale:true,brentStale:true,weather:snapshot.data.weather?{...snapshot.data.weather,stale:true}:null}:emptyDashboardData).finally(()=>{if(pending?.promise===promise)pending=undefined;});
  pending={user,promise};return promise;
 }
+type DashboardViewData=DashboardData&{loading?:boolean};
 export function useDashboardData(user:string){
- const [data,setData]=useState(emptyDashboardData);
+ const [data,setData]=useState<DashboardViewData>({...emptyDashboardData,loading:true,weatherMessage:'Hava durumu yükleniyor…'});
  useEffect(()=>{let active=true;const refresh=()=>{if(document.visibilityState==='visible')void load(user).then(value=>{if(active)setData(value);});};refresh();const timer=setInterval(refresh,300000);document.addEventListener('visibilitychange',refresh);return ()=>{active=false;clearInterval(timer);document.removeEventListener('visibilitychange',refresh);};},[user]);
  return data;
 }
@@ -27,12 +28,12 @@ export function LiveClock(){
  return <div className="header-date live-clock"><span>{value?.date||'Güncel tarih'}</span><strong>{value?.time||'--:--'}</strong></div>;
 }
 const money=new Intl.NumberFormat('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:4});
-export function MarketStrip({data}:{data:DashboardData}){
- const tooltip=data.fx?`Kaynak: TCMB · Gösterge niteliğinde döviz satış kuru (günlük) · Kur tarihi: ${data.fx.asOf}${data.fxStale?' · Son başarılı veri':''}`:'TCMB verisi şu anda alınamadı';
- return <div className="market-strip" aria-label="Piyasa bilgileri">{(['USD','EUR','GBP'] as const).map(code=><div key={code} title={tooltip} tabIndex={0}><span>{code}</span><b>{data.fx?money.format(data.fx.rates[code])+' ₺':'--'}</b></div>)}<div title={data.brent?`Kaynak: U.S. EIA · Brent petrol, USD/varil · Günlük veri, anlık değil · Fiyat tarihi: ${data.brent.asOf}${data.brentStale?' · Son başarılı veri':''}`:'Brent verisi şu anda alınamadı'} tabIndex={0}><span>Petrol <small>günlük</small></span><b>{data.brent?money.format(data.brent.value)+' $':'--'}</b></div></div>;
+export function MarketStrip({data}:{data:DashboardViewData}){
+ const tooltip=data.fx?`Kaynak: TCMB · Gösterge niteliğinde döviz satış kuru (günlük) · Kur tarihi: ${data.fx.asOf}${data.fxStale?' · Son başarılı veri':''}`:data.loading?'Piyasa verileri yükleniyor…':'TCMB verisi şu anda alınamadı';
+ return <div className="market-strip" aria-label="Piyasa bilgileri">{(['USD','EUR','GBP'] as const).map(code=><div key={code} title={tooltip} tabIndex={0}><span>{code}</span><b>{data.fx?money.format(data.fx.rates[code])+' ₺':'--'}</b></div>)}<div title={data.brent?`Kaynak: U.S. EIA · Brent petrol, USD/varil · Günlük veri, anlık değil · Fiyat tarihi: ${data.brent.asOf}${data.brentStale?' · Son başarılı veri':''}`:data.loading?'Piyasa verileri yükleniyor…':'Petrol verisi şu anda alınamadı'} tabIndex={0}><span>Petrol <small>günlük</small></span><b>{data.brent?money.format(data.brent.value)+' $':'--'}</b></div></div>;
 }
 const icons={clear:Sun,'partly-cloudy':CloudSun,overcast:Cloud,fog:CloudFog,drizzle:CloudDrizzle,rain:CloudRain,'heavy-rain':CloudRainWind,snow:CloudSnow,storm:CloudLightning,unknown:Cloud};
-export function WeatherCard({data}:{data:DashboardData}){
+export function WeatherCard({data}:{data:DashboardViewData}){
  const [index,setIndex]=useState(0);const touch=useRef<{x:number;y:number}|null>(null);const weather=data.weather;
  const today=weather?localDate(new Date(),weather.timezone):'';
  const days=weather?.days.filter(d=>d.date>=today)||[];const selected=Math.min(index,Math.max(0,days.length-1));const day=days[selected];
