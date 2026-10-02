@@ -37,6 +37,9 @@ CREATE TABLE IF NOT EXISTS training_sessions(
  created_at timestamptz NOT NULL DEFAULT now(),cancelled_at timestamptz,
  CHECK(ends_at>starts_at),CHECK(join_url='' OR join_url ~* '^https://')
 );
+-- A Preview database may already contain the table from an interrupted/older
+-- deployment. CREATE TABLE IF NOT EXISTS does not add columns to that table.
+ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS cancelled_at timestamptz;
 CREATE INDEX IF NOT EXISTS training_sessions_schedule ON training_sessions(starts_at,course_id) WHERE cancelled_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS training_session_participants(
