@@ -1,0 +1,5 @@
+export const fleetPermissions=['fleet.view','fleet.create','fleet.edit','fleet.assign','fleet.manage','fleet.documents.view'];
+export const fleetStates={ASSIGNED:'Tahsisli',POOL:'Havuzda',SERVICE:'Serviste',FAULTY:'Arızalı',INACTIVE:'Pasif'};
+export type Vehicle={id:string;plate:string;brand:string;model:string;model_year:number;vin:string|null;fuel:string;km:number;company_id:string;location_id:string;status:keyof typeof fleetStates;registration:string;insurance_end:string|null;casco_end:string|null;inspection_date:string|null;last_service_date:string|null;next_service_date:string|null;next_service_km:number|null;tires:string;hgs_reference:string;notes:string;company_name?:string;location_name?:string;assignee_name?:string};
+export type Allocation={id:string;user_id:string;employee:string;start_at:string;end_at:string|null;start_km:number;end_km:number|null;note:string;return_note:string};
+export type FleetService={id:string;kind:string;date:string;km:number;provider:string;description:string;cost:string|null;has_document:boolean;next_service_date:string|null;next_service_km:number|null};
