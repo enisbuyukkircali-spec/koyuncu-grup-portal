@@ -1,0 +1,19 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {randomUUID} from 'node:crypto';
+import {PGlite} from '@electric-sql/pglite';
+import {injectTestDB} from '../lib/db';
+import {seed} from '../lib/seed';
+import {identityFor} from '../lib/auth-core';
+import {report,reportCSV} from '../lib/reports';
+import {reportSections,ReportSection} from '../lib/report-shared';
+test('Phase 2A-15 real aggregate reports and authorization',async t=>{
+Object.assign(process.env,{NODE_ENV:'test'});const pg=new PGlite();let queries=0;const db={query:async<T>(sql:string,v?:unknown[])=>{queries++;return {rows:(await pg.query(sql,v)).rows as T[]};}};injectTestDB(db);for(const f of ['001_phase2.sql','002_inventory.sql','005_workflows.sql','011_ticket_v2.sql','012_surveys.sql','013_people_assets.sql','014_fleet.sql'])await pg.exec(await readFile('db/'+f,'utf8'));await seed(db);const company=randomUUID();await db.query("INSERT INTO companies(id,name,code) VALUES($1,'Test','TEST')",[company]);const ids=[randomUUID(),randomUUID(),randomUUID()];for(let i=0;i<3;i++){await db.query("INSERT INTO users(id,personnel_no,first_name,last_name,email,username,company_id,must_change_password,start_date) VALUES($1,$2,'Report','Person',$3,$2,$4,false,'2020-01-01')",[ids[i],'report'+i,'report'+i+'@example.test',company]);await db.query('INSERT INTO user_roles VALUES($1,$2)',[ids[i],['SUPER_ADMIN','EMPLOYEE','IT_ADMIN'][i]]);}const root=(await identityFor(db,ids[0]))!,emp=(await identityFor(db,ids[1]))!,it=(await identityFor(db,ids[2]))!;
+await t.test('every section executes a single aggregate round-trip on empty business data',async()=>{for(const kind of Object.keys(reportSections) as ReportSection[]){queries=0;const b=await report(root,kind);assert.ok(b.length>0,kind);assert.equal(queries,1,kind);}});
+await t.test('organization and date parameters execute safely',async()=>{for(const kind of Object.keys(reportSections) as ReportSection[]){const b=await report(root,kind,new URLSearchParams({company_id:company,from:'2020-01-01',to:'2030-01-01'}));assert.ok(b.length>0);}});
+await t.test('employee cannot read any report; IT cannot read sensitive HR',async()=>{for(const kind of Object.keys(reportSections) as ReportSection[])await assert.rejects(()=>report(emp,kind),{status:403});await assert.rejects(()=>report(it,'hr'),{status:403});assert.ok((await report(it,'inventory')).length>0);});
+await t.test('HR aggregates actual users and filters absent organizations',async()=>{assert.equal((await report(root,'hr'))[0].rows[0]['Toplam'],3);assert.equal((await report(root,'hr',new URLSearchParams({company_id:randomUUID()})))[0].rows[0]['Toplam'],0);});
+await t.test('anonymous survey counts below threshold and organization cuts are suppressed',async()=>{const id=randomUUID();await db.query("INSERT INTO surveys(id,title,anonymous,required,status,starts_at,ends_at,privacy_threshold,audience_all,targets,questions,created_by) VALUES($1,'Private Survey',true,false,'PUBLISHED',now()-interval '1 day',now()+interval '1 day',5,true,'[]','[]',$2)",[id,root.id]);await db.query('INSERT INTO survey_participation VALUES($1,$2)',[id,emp.id]);const row=(await report(root,'surveys'))[0].rows[0];assert.equal(row['Cevaplayan'],null);assert.equal(row['Bekleyen'],null);assert.equal((await report(root,'surveys',new URLSearchParams({company_id:company})))[0].rows.length,0);});
+await t.test('permission override denies report and CSV prevents formula execution',async()=>{await db.query("INSERT INTO user_permission_overrides VALUES($1,'reports.view_inventory',false)",[it.id]);const denied=(await identityFor(db,it.id))!;await assert.rejects(()=>report(denied,'inventory'),{status:403});const csv=reportCSV([{title:'Safe',rows:[{Name:'=HYPERLINK("url")',Number:1}]}]);assert.ok(csv.includes("' =HYPERLINK"));});
+await pg.close();});
