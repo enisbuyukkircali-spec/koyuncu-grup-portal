@@ -29,3 +29,6 @@ CREATE INDEX IF NOT EXISTS users_status_idx ON users(status);
 CREATE INDEX IF NOT EXISTS departments_company_idx ON departments(company_id);
 CREATE INDEX IF NOT EXISTS departments_parent_idx ON departments(parent_id);
 CREATE INDEX IF NOT EXISTS units_department_idx ON units(department_id);
+
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS details jsonb;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS expertise text NOT NULL DEFAULT '';

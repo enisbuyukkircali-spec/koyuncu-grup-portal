@@ -1,0 +1,13 @@
+BEGIN;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS expertise text NOT NULL DEFAULT '';
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS description text NOT NULL DEFAULT '';
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS website text NOT NULL DEFAULT '';
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS phone text;
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS address text;
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS contact_user_id uuid REFERENCES users;
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS details jsonb;
+CREATE INDEX IF NOT EXISTS users_expertise_search ON users USING gin(portal_fold(expertise) gin_trgm_ops) WHERE show_in_directory AND archived_at IS NULL;
+CREATE INDEX IF NOT EXISTS user_org_history ON audit_logs(entity_id,created_at DESC) WHERE entity_type='user' AND details IS NOT NULL;
+CREATE INDEX IF NOT EXISTS inventory_warranty_due ON inventory_items(warranty_end) WHERE status<>'INACTIVE';
+CREATE INDEX IF NOT EXISTS training_certificate_due ON training_assignments(valid_until) WHERE valid_until IS NOT NULL;
+COMMIT;
