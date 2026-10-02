@@ -39,7 +39,46 @@ CREATE TABLE IF NOT EXISTS training_sessions(
 );
 -- A Preview database may already contain the table from an interrupted/older
 -- deployment. CREATE TABLE IF NOT EXISTS does not add columns to that table.
-ALTER TABLE training_sessions ADD COLUMN IF NOT EXISTS cancelled_at timestamptz;
+ALTER TABLE training_sessions
+ ADD COLUMN IF NOT EXISTS starts_at timestamptz,
+ ADD COLUMN IF NOT EXISTS ends_at timestamptz,
+ ADD COLUMN IF NOT EXISTS mode text NOT NULL DEFAULT 'LIVE_ONLINE' CHECK(mode IN('LIVE_ONLINE','FACE_TO_FACE','HYBRID')),
+ ADD COLUMN IF NOT EXISTS provider text NOT NULL DEFAULT 'OTHER' CHECK(provider IN('TEAMS','MEET','ZOOM','OTHER')),
+ ADD COLUMN IF NOT EXISTS join_url text NOT NULL DEFAULT '',
+ ADD COLUMN IF NOT EXISTS attendance_required boolean NOT NULL DEFAULT true,
+ ADD COLUMN IF NOT EXISTS cancelled_at timestamptz;
+-- Preserve and translate columns from the legacy Preview session schema when present.
+DO $$ BEGIN
+ IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='training_sessions' AND column_name='start_at') THEN
+  EXECUTE 'UPDATE training_sessions SET starts_at=COALESCE(starts_at,start_at) WHERE starts_at IS NULL';
+ END IF;
+ IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='training_sessions' AND column_name='end_at') THEN
+  EXECUTE 'UPDATE training_sessions SET ends_at=COALESCE(ends_at,end_at) WHERE ends_at IS NULL';
+ END IF;
+ IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='training_sessions' AND column_name='meeting_url') THEN
+  EXECUTE $q$UPDATE training_sessions SET join_url=meeting_url WHERE join_url='' AND meeting_url ~* '^https://'$q$;
+ END IF;
+ IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='training_sessions' AND column_name='platform') THEN
+  EXECUTE $q$UPDATE training_sessions SET provider=CASE WHEN platform ILIKE '%team%' THEN 'TEAMS' WHEN platform ILIKE '%meet%' THEN 'MEET' WHEN platform ILIKE '%zoom%' THEN 'ZOOM' ELSE provider END$q$;
+ END IF;
+ IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='training_sessions' AND column_name='cancelled') THEN
+  EXECUTE 'UPDATE training_sessions SET cancelled_at=COALESCE(cancelled_at,created_at,now()) WHERE cancelled IS TRUE AND cancelled_at IS NULL';
+  CREATE OR REPLACE FUNCTION sync_training_session_legacy_columns() RETURNS trigger LANGUAGE plpgsql AS $function$
+  BEGIN
+   IF TG_OP='INSERT' THEN
+    NEW.start_at:=COALESCE(NEW.start_at,NEW.starts_at); NEW.starts_at:=COALESCE(NEW.starts_at,NEW.start_at);
+    NEW.end_at:=COALESCE(NEW.end_at,NEW.ends_at); NEW.ends_at:=COALESCE(NEW.ends_at,NEW.end_at);
+   ELSE
+    IF NEW.starts_at IS DISTINCT FROM OLD.starts_at THEN NEW.start_at:=NEW.starts_at; ELSIF NEW.start_at IS DISTINCT FROM OLD.start_at THEN NEW.starts_at:=NEW.start_at; END IF;
+    IF NEW.ends_at IS DISTINCT FROM OLD.ends_at THEN NEW.end_at:=NEW.ends_at; ELSIF NEW.end_at IS DISTINCT FROM OLD.end_at THEN NEW.ends_at:=NEW.end_at; END IF;
+   END IF;
+   RETURN NEW;
+  END $function$;
+  IF NOT EXISTS(SELECT 1 FROM pg_trigger WHERE tgname='training_sessions_legacy_column_sync' AND tgrelid='training_sessions'::regclass AND NOT tgisinternal) THEN
+   CREATE TRIGGER training_sessions_legacy_column_sync BEFORE INSERT OR UPDATE ON training_sessions FOR EACH ROW EXECUTE FUNCTION sync_training_session_legacy_columns();
+  END IF;
+ END IF;
+END $$;
 CREATE INDEX IF NOT EXISTS training_sessions_schedule ON training_sessions(starts_at,course_id) WHERE cancelled_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS training_session_participants(
