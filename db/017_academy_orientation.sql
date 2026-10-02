@@ -85,14 +85,44 @@ CREATE TABLE IF NOT EXISTS training_session_participants(
  session_id uuid NOT NULL REFERENCES training_sessions,user_id uuid NOT NULL REFERENCES users,
  enrolled_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(session_id,user_id)
 );
+ALTER TABLE training_session_participants
+ ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users,
+ ADD COLUMN IF NOT EXISTS enrolled_at timestamptz NOT NULL DEFAULT now();
+DO $$ DECLARE old_key text; BEGIN
+ IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='training_session_participants' AND column_name='assignment_id') THEN
+  UPDATE training_session_participants p SET user_id=a.user_id FROM training_assignments a WHERE a.id=p.assignment_id AND p.user_id IS NULL;
+  IF EXISTS(SELECT 1 FROM training_session_participants WHERE user_id IS NULL) THEN RAISE EXCEPTION 'Legacy training participants cannot be mapped to users'; END IF;
+  IF EXISTS(SELECT 1 FROM training_session_participants GROUP BY session_id,user_id HAVING count(*)>1) THEN RAISE EXCEPTION 'Legacy training participants contain duplicate users per session'; END IF;
+  ALTER TABLE training_session_participants ALTER COLUMN user_id SET NOT NULL;
+  SELECT conname INTO old_key FROM pg_constraint WHERE conrelid='training_session_participants'::regclass AND contype='p';
+  IF old_key IS NOT NULL AND NOT EXISTS(SELECT 1 FROM pg_constraint WHERE conrelid='training_session_participants'::regclass AND contype='p' AND pg_get_constraintdef(oid)='PRIMARY KEY (session_id, user_id)') THEN
+   EXECUTE format('ALTER TABLE training_session_participants DROP CONSTRAINT %I',old_key);
+  END IF;
+  ALTER TABLE training_session_participants ALTER COLUMN assignment_id DROP NOT NULL;
+ END IF;
+ IF NOT EXISTS(SELECT 1 FROM pg_constraint WHERE conrelid='training_session_participants'::regclass AND contype='p') THEN
+  ALTER TABLE training_session_participants ADD CONSTRAINT training_session_participants_pkey PRIMARY KEY(session_id,user_id);
+ END IF;
+END $$;
 CREATE INDEX IF NOT EXISTS training_session_participant_user ON training_session_participants(user_id,session_id);
 
 CREATE TABLE IF NOT EXISTS training_attendance(
  id uuid PRIMARY KEY,session_id uuid NOT NULL REFERENCES training_sessions,user_id uuid NOT NULL REFERENCES users,
- status text NOT NULL CHECK(status IN('PRESENT','ABSENT','EXCUSED')),
+ status text NOT NULL CHECK(status IN('PRESENT','ABSENT','EXCUSED','LATE')),
  checked_by uuid NOT NULL REFERENCES users,checked_at timestamptz NOT NULL DEFAULT now(),notes text NOT NULL DEFAULT '',
  UNIQUE(session_id,user_id)
 );
+DO $$ BEGIN
+ IF EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='training_session_participants' AND column_name='attendance') THEN
+  INSERT INTO training_attendance(id,session_id,user_id,status,checked_by,checked_at,notes)
+  SELECT md5(p.session_id::text||':'||p.user_id::text)::uuid,p.session_id,p.user_id,
+   CASE p.attendance WHEN 'ATTENDED' THEN 'PRESENT' WHEN 'LATE' THEN 'LATE' WHEN 'ABSENT' THEN 'ABSENT' WHEN 'EXCUSED' THEN 'EXCUSED' END,
+   COALESCE(p.recorded_by,s.created_by),COALESCE(p.recorded_at,s.created_at,now()),''
+  FROM training_session_participants p JOIN training_sessions s ON s.id=p.session_id
+  WHERE p.attendance IN('ATTENDED','LATE','ABSENT','EXCUSED')
+  ON CONFLICT(session_id,user_id) DO NOTHING;
+ END IF;
+END $$;
 
 -- Reuse the existing Phase 2A-13 onboarding checklist and task rows for orientation.
 ALTER TABLE employee_checklists
