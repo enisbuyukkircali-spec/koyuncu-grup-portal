@@ -28,3 +28,25 @@
 - Delivery acceptance is collected after assignment creation (employee must be able to see the record first); pending acceptance remains visible. Inventory service records append only.
 - Storage uses existing inline PostgreSQL approach: individual file maximum 200 KB, handover attachments combined maximum 220 KB. Large original photos require resizing; no paid storage/provider added.
 - New permissions: training.view_own/manage, onboarding.manage, offboarding.manage/override, departures.manage, people_tasks.view_own/update_own. Existing inventory permissions reused.
+
+## Phase 2A-14
+- Separate fleet vehicles, immutable allocations/returns and service records; unique active allocation and database consistency guard. Protected documents, scoped admin actions, real aggregate dashboard.
+- Checkpoint a33dafa; 334 tests, typecheck/build and Preview passed.
+
+## Phase 2A-15
+- HR, inventory, tickets/SLA, surveys, training, fleet and people reports aggregate existing sources. Same authorization for screen and CSV; spreadsheet formula escaping. Anonymous survey minimum-response suppression retained. No reporting database.
+- Checkpoint dba97b3; 341 tests, typecheck/build and Preview passed. No migration.
+
+## Phase 2A-16
+- Organization projection reuses manager_user_id and directory visibility. Company public contact fields, expertise search, organization changes in existing AuditLog details, due-date projection and personal summary. No scheduler or second source of truth.
+- Checkpoint 0d1c209; 348 tests, typecheck/build and Preview passed.
+
+## Phase 2A-17
+- Extends training_courses/training_assignments from 013. Migration 017 adds category metadata, immutable assignment snapshots, exam attempts, sessions/attendance, certificates, development plans and orientation templates/steps.
+- Four delivery methods and four obligation types. Employee self-enroll only optional courses; manager assignment/development/orientation writes require direct current reporting relationship. HR audience assignment reuses organization/role targeting and notification/outbox foundation.
+- Server grading, bounded attempts and all-required completion conditions. Completed assignment snapshots and attempts remain immutable; renewed training creates another cycle. External SCORM/LMS content cannot be manually declared complete while provider is unconfigured.
+- Existing calendar query projects assigned training sessions. Orientation combines group/company/department/unit/role templates, buddy and manager tasks. Progress projects current training completion, current acknowledgement revision and assignment acceptance; no duplicate business records.
+- Catalog/assignment lists paginated at 20, bounded dropdowns, aggregate reports. Dashboard design unchanged. Existing session cache retained; no additional authentication lookups in read services.
+- 368 tests pass including 20 Academy integration tests; typecheck and production build pass. Prior agenda test was narrowed to auth session table references because training_sessions is intentionally part of the single agenda query.
+- No new environment variables. Email and LMS providers remain unconfigured. No cron, production/domain changes or paid services.
+- Limits: inline certificate/image files remain 200 KB. Content completion is an employee acknowledgement, not a legal certification or SCORM runtime. Repeat period is metadata; no automated recurring assignment job. Live links are manually entered; attendance is recorded by authorized staff.

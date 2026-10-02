@@ -23,7 +23,7 @@ test('V1 audit: seven roles, sessions, dashboard and scope',async t=>{
  const pg=new PGlite({extensions:{pg_trgm,btree_gist}});let queries:string[]=[];
  const db={query:async(sql:string,values?:unknown[])=>{queries.push(sql);return pg.query<any>(sql,values);}};injectTestDB(db);
  for(const file of ['001_phase2.sql','002_inventory.sql','003_content.sql','004_dashboard_cache.sql','005_workflows.sql','006_engagement.sql','007_meetings.sql','008_directory.sql','009_brand_center.sql','006_engagement.sql','010_notification_v2.sql','011_ticket_v2.sql','013_people_assets.sql'])await pg.exec(await readFile('db/'+file,'utf8'));
- await seed(db);const hash=await hashPassword('Audit-test-923!');
+ for(const f of ['002_inventory.sql','013_people_assets.sql','017_academy.sql'])await pg.exec(await readFile('db/'+f,'utf8'));await seed(db);const hash=await hashPassword('Audit-test-923!');
  for(const role of Object.keys(initialRoles))await t.test(role+' login / dashboard / authorized and denied operations / logout',async()=>{
   const id=randomUUID(),name=role.toLowerCase();
   await db.query("INSERT INTO users(id,personnel_no,first_name,last_name,email,username,must_change_password) VALUES($1,$2,$2,'Audit',$3,$2,false)",[id,name,name+'@example.test']);
@@ -51,7 +51,7 @@ test('V1 audit: seven roles, sessions, dashboard and scope',async t=>{
  });
  await t.test('system seed does not create business records and repeat does not alter grants',async()=>{
   for(const table of ['requests','leave_requests','suggestions','meeting_reservations','asset_assignments','workflow_notifications'])assert.equal((await db.query(`SELECT count(*)::int n FROM ${table}`)).rows[0].n,0);
-  await db.query("DELETE FROM role_permissions WHERE role_id='EMPLOYEE' AND permission_id='directory.view'");await seed(db);assert.equal((await db.query("SELECT count(*)::int n FROM role_permissions WHERE role_id='EMPLOYEE' AND permission_id='directory.view'")).rows[0].n,0);
+  await db.query("DELETE FROM role_permissions WHERE role_id='EMPLOYEE' AND permission_id='directory.view'");for(const f of ['002_inventory.sql','013_people_assets.sql','017_academy.sql'])await pg.exec(await readFile('db/'+f,'utf8'));await seed(db);assert.equal((await db.query("SELECT count(*)::int n FROM role_permissions WHERE role_id='EMPLOYEE' AND permission_id='directory.view'")).rows[0].n,0);
  });
  await pg.close();
 });
