@@ -8,6 +8,7 @@ import {identityFor} from './auth-core';
 import {audit,requirePermission} from './admin';
 import {AppError,assertOrigin} from './security';
 import {ContentKind,contentKinds,portalContentPermission,homepageDefaults,HomepageSettings,DashboardContent,ContentRow,slugify,targetNames} from './content-shared';
+import {syncOrientationAcknowledgement} from './academy';
 type Row=Record<string,any>;
 const guid=z.string().regex(/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i);
 const short=z.string().trim().max(500).default('');
@@ -58,12 +59,12 @@ export async function dashboardContent(actor:Identity,corporate=false):Promise<D
 export async function readContentJSON(request:Request){assertOrigin(request);const raw=await request.text();if(raw.length>900000)throw new AppError(413,'Gönderilen içerik çok büyük.');try{return JSON.parse(raw);}catch{throw new AppError(400,'Gönderilen veri okunamadı.');}}
 
 export async function acknowledgeContent(actor:Identity,kind:ContentKind,slug:string,payload:unknown){
- if(!['announcements','documents'].includes(kind))throw new AppError(404,'Bulunamadı.');
+ if(kind!=='announcements'&&kind!=='documents')throw new AppError(404,'Bulunamadı.');
  const {revision}=z.object({revision:z.number().int().positive()}).strict().parse(payload);
  return transaction(async db=>{await lock(db);const live=await identityFor(db,actor.id);if(!live)throw new AppError(401,'Yeniden giriş yapın.');
  const item=await publicContentDetail(live,kind,slug,db);
  if(!item.acknowledgement_required||item.acknowledgement_revision!==revision)throw new AppError(409,'İçerik güncellendi. Sayfayı yenileyip tekrar okuyun.');
- await db.query('INSERT INTO content_acknowledgements(kind,content_id,revision,user_id) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING',[kind,item.id,revision,live.id]);return {ok:true};});
+ await db.query('INSERT INTO content_acknowledgements(kind,content_id,revision,user_id) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING',[kind,item.id,revision,live.id]);await syncOrientationAcknowledgement(db,live.id,kind,item.id,revision);return {ok:true};});
 }
 export async function acknowledgementReport(actor:Identity,kind:ContentKind,id:string){
  if(!['announcements','documents'].includes(kind))throw new AppError(404,'Bulunamadı.');permit(actor,kind+'.manage');guid.parse(id);

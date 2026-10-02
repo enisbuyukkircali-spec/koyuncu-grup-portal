@@ -12,7 +12,7 @@ import {createNotification,syncPersonalNotifications} from '../lib/notifications
 import {emailProvider} from '../lib/email-provider';
 test('Phase 2A-10 outbox and acknowledgement integrity',async t=>{
  Object.assign(process.env,{NODE_ENV:'test'});const pg=new PGlite({extensions:{pg_trgm}});const db={query:async(sql:string,args?:unknown[])=>pg.query<any>(sql,args)};injectTestDB(db);
- for(const f of ['001_phase2.sql','003_content.sql','005_workflows.sql','006_engagement.sql','008_directory.sql','009_brand_center.sql','010_notification_v2.sql','011_ticket_v2.sql'])await pg.exec(await readFile('db/'+f,'utf8'));await seed(db);
+ for(const f of ['001_phase2.sql','002_inventory.sql','003_content.sql','005_workflows.sql','006_engagement.sql','008_directory.sql','009_brand_center.sql','010_notification_v2.sql','011_ticket_v2.sql','013_people_assets.sql','017_academy_orientation.sql'])await pg.exec(await readFile('db/'+f,'utf8'));await seed(db);
  const root=randomUUID(),emp=randomUUID(),other=randomUUID();for(const [id,role]of [[root,'SUPER_ADMIN'],[emp,'EMPLOYEE'],[other,'EMPLOYEE']]){await db.query("INSERT INTO users(id,personnel_no,first_name,last_name,email,username,must_change_password) VALUES($1::uuid,$3,'Test','User',$2,$3,false)",[id,id+'@example.test',id]);await db.query('INSERT INTO user_roles VALUES($1,$2)',[id,role]);}
  const admin=(await identityFor(db,root))!,employee=(await identityFor(db,emp))!,outsider=(await identityFor(db,other))!;
  const category=(await db.query("SELECT id FROM announcements_categories WHERE name='Genel'")).rows[0].id;
